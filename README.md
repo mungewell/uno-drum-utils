@@ -15,6 +15,28 @@ https://github.com/mungewell/uno-synth-utils
 Reverse engineering has only just started but it seems that it's at least somewhat
 similar the UNO Synth.
 
+CMD 0x14: Read back current Kit/Pattern setting
+```
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 14 f7' -r temp.bin -t 1 ; hexdump -C temp.bin
+
+14 bytes read
+00000000  f0 00 21 1a 02 02 00 14  02 00 03 02 63 f7        |..!.........c.|
+0000000e
+                                         ^^    ^^-- Kit
+                                         ++-------- Pattern
+```
+
+CMD 0x33: Switch to Drum Kit xx (ie 100-> 0x64).
+Note: display does not automatically update
+```
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 33 64 f7' -r temp.bin -t 1 ; hexdump -C temp.bin
+
+29 bytes read
+00000000  f0 00 21 1a 02 02 32 63  63 f7 f0 00 21 1a 02 02  |..!...2cc...!...|
+00000010  00 33 f7 f0 00 21 1a 02  02 32 64 64 f7           |.3...!...2dd.|
+0000001d
+```
+
 The patch name is not displayed on the device, but is stored and read back by
 the official patch editor application.
 
