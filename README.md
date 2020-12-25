@@ -29,6 +29,54 @@ $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 29 01 64 00 f7' -r temp.bin -t 1 ; hex
 0000002c
 ```
 
+## Device Configuration (Setup)
+
+CMD 0x21: Write setup parameter, need to enter 'setup mode' first with CMD 0x11
+```
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 11 01 7f f7' -r temp.bin -t 1 ; hexdump -C temp.bin
+
+20 bytes read
+00000000  f0 00 21 1a 02 02 34 00  01 01 f7 f0 00 21 1a 02  |..!...4......!..|
+00000010  02 00 11 f7                                       |....|
+00000014
+```
+
+And then, for example turning "Prog Change" messages on...
+```
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 21 00 06 01 f7' -r temp.bin -t 1 ; hexdump -C temp.bin
+
+9 bytes read
+00000000  f0 00 21 1a 02 02 00 21  f7                       |..!....!.|
+00000009
+```
+
+CMD 0x22: Read setup parameter.
+```
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 22 00 01 f7' -r temp.bin -t 1 ; hexdump -C temp.bin
+
+9 bytes read
+00000000  f0 00 21 1a 02 02 00 22  f7                       |..!....".|
+00000009
+
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 22 00 06 f7' -r temp.bin -t 1 ; hexdump -C temp.bin
+
+12 bytes read
+00000000  f0 00 21 1a 02 02 00 22  00 06 01 f7              |..!...."....|
+0000000c
+```
+
+## System Commands
+
+CMD 0x11: Set device mode, ie 'setup mode'.
+```
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 11 01 7f f7' -r temp.bin -t 1 ; hexdump -C temp.bin
+
+20 bytes read
+00000000  f0 00 21 1a 02 02 34 00  01 01 f7 f0 00 21 1a 02  |..!...4......!..|
+00000010  02 00 11 f7                                       |....|
+00000014
+```
+
 CMD 0x12: Read F/W version
 ```
 $ amidi -p hw:1,0,0 -S 'f0 0 21 1a 2 2 12 f7' -r temp.bin -t 1 ; hexdump -C temp.bin
