@@ -5,6 +5,7 @@
 #
 
 from construct import *
+from hexdump import *
 
 #--------------------------------------------------
 # Define UNODRPT file format using Construct (v2.9)
@@ -45,12 +46,15 @@ def main():
     parser.add_option("-d", "--dump",
         help="dump configuration to text",
         action="store_true", dest="dump")
+    parser.add_option("-l", "--line",
+        help="dump line X as hex", dest="line")
 
     (options, args) = parser.parse_args()
     
     if len(args) != 1:
         parser.error("FILE not specified")
 
+    print("Parsing '%s'" % args[0])
     infile = open(args[0], "rb")
     if not infile:
         sys.exit("Unable to open FILE for reading")
@@ -61,6 +65,11 @@ def main():
     if options.dump and data:
         config = UNODRPT.parse(data)
         print(config)
+
+    if options.line and data:
+        config = UNODRPT.parse(data)
+        #print("line %s :" % options.line)
+        print(hexdump(config['line'+str(options.line)]['blob']))
 
 
 if __name__ == "__main__":
