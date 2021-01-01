@@ -50,7 +50,8 @@ $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 35 00 63 f7' -r temp.bin -t 1 ; hexdum
 The patch name is not displayed on the device, but is stored and read back by
 the official patch editor application.
 
-CMD 0x29+0x01: Read back patch name (for example patch 100 -> 0x64)
+CMD 0x29+0x01: Read back Kit name
+CMD 0x29+0x02: Read back Pattern name
 ```
 $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 29 01 64 00 f7' -r temp.bin -t 1 ; hexdump -C temp.bin
 
@@ -61,7 +62,8 @@ $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 29 01 64 00 f7' -r temp.bin -t 1 ; hex
 0000002c
 ```
 
-CMD 0x28+0x01: Write patch name
+CMD 0x28+0x01: Write Kit name
+CMD 0x28+0x02: Write Pattern name
 ```
 $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 11 01 0a f7'
 $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 28 01 63 01 55 4e 4f 2d 55 74 69 6c 73 f7' -r temp.bin -t 1 ; hexdump -C temp.bin
@@ -79,6 +81,7 @@ files appear to be encoded differently to the data stored on the device.
 
 Patterns are structured as a number of instruments.
 
+```
 PCM Sounds:
 Inst 1 = tom1 (vel, level, tune, decay)
 Inst 2 = tom2 (vel, level, tune, decay)
@@ -88,12 +91,13 @@ Inst 5 = ride (vel, level, tune, decay)
 Inst 6 = cymbal (vel, level, tune, decay)
 
 Analog/PCM Sounds:
-Inst 7 = kick1 (vel, level, tune, decay, snap, FM tune FM_amt, sweep)
+Inst 7 = kick1 (vel, level, tune, decay, snap, FM tune FM amt, sweep)
 Inst 8 = kick2 (vel, level, tune, decay, snap)
 Inst 9 = snare (vel, level, tune, decay, snap, Noise LPF)
 Inst 10 = closed hh (vel, level, tune, decay)
 Inst 11 = open hh (vel, level, tune, decay)
 Inst 12 = clap (vel, level, tune, decay)
+```
 
 Additionally the 'length'(in steps) and 'swing' are stored as Instrument 0.
 
