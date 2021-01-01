@@ -48,6 +48,12 @@ def main():
         action="store_true", dest="dump")
     parser.add_option("-l", "--line",
         help="dump line X as hex", dest="line")
+    parser.add_option("-s", "--summary",
+        help="summarize config in human readable form",
+        action="store_true", dest="summary")
+    parser.add_option("-x", "--xor",
+        help="XOR the BLOB with 0x2E",
+        action="store_true", dest="xor")
 
     (options, args) = parser.parse_args()
     
@@ -68,8 +74,20 @@ def main():
 
     if options.line and data:
         config = UNODRPT.parse(data)
+
+        if options.xor:
+           new = bytearray()
+           for byte in config['line'+str(options.line)]['blob']:
+               new.append(0x2e ^ int(byte))
+           config['line'+str(options.line)]['blob'] = new
+
         #print("line %s :" % options.line)
         print(hexdump(config['line'+str(options.line)]['blob']))
+
+    if options.summary and data:
+        config = UNODRPT.parse(data)
+        for line in range(13):
+            print(line, hexdump(config['line'+str(line)]['blob']))
 
 
 if __name__ == "__main__":

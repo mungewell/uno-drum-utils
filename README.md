@@ -71,6 +71,97 @@ $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 28 01 63 01 55 4e 4f 2d 55 74 69 6c 73
 0000000c
 ```
 
+## Patterns
+
+The UNO-Drum can store 100 Patterns. These can be editted by the official 
+app, which can also save/load patterns to '.unodrpt' files. Unfortunately these
+files appear to be encoded differently to the data stored on the device.
+
+Patterns are structured as a number of instruments.
+
+PCM Sounds:
+Inst 1 = tom1 (vel, level, tune, decay)
+Inst 2 = tom2 (vel, level, tune, decay)
+Inst 3 = rim (vel, level, tune, decay)
+Inst 4 = cowbell (vel, level, tune, decay)
+Inst 5 = ride (vel, level, tune, decay)
+Inst 6 = cymbal (vel, level, tune, decay)
+
+Analog/PCM Sounds:
+Inst 7 = kick1 (vel, level, tune, decay, snap, FM tune FM_amt, sweep)
+Inst 8 = kick2 (vel, level, tune, decay, snap)
+Inst 9 = snare (vel, level, tune, decay, snap, Noise LPF)
+Inst 10 = closed hh (vel, level, tune, decay)
+Inst 11 = open hh (vel, level, tune, decay)
+Inst 12 = clap (vel, level, tune, decay)
+
+Additionally the 'length'(in steps) and 'swing' are stored as Instrument 0.
+
+The currently selected pattern can be read/set via SysEx commands, instrument by
+instrument. The pattern data is structured a bit field holding the affected steps,
+followed by parameter values for each.
+
+There are a number of parameters which can be recorded, these differ on the type
+instrument (as above) and each parameter type has it's own bitfield for 
+marking affected steps.
+
+CMD 0x37: Read Instrument in current Pattern, for example '0x07' for Kick1
+```
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 37 03 07 f7' -r temp.bin -t .1 ; hexdump -C temp.bin
+
+29 bytes read
+00000000  f0 00 21 1a 02 02 00 37  03 07 01 00 05 11 00 7f  |..!....7........|
+00000010  7f 05 11 00 40 40 00 00  00 00 00 00 f7           |....@@.......|
+0000001d
+```
+
+The encoding is quiet complex, in order to define the length of the bitfield the
+packet include the last active step of that bitfield. The number of active ('1')
+bits in the bitfield determine how many param values are given.
+```
+00000000  f0 00 21 1a 02 02 00 37  03 07 01 00 05 11 00 7f  |..!....7........|
+                                                        ^^ 1st Param value(s)
+                                                     -- padding
+                                                  ++ Bitfield
+                                               ** Last Step
+                                      ^^ Instrument
+00000010  7f 05 11 00 40 40 00 00  00 00 00 00 f7           |....@@.......|
+                            ~~ ~~  ~~ ~~ ~~ ~~ Unused Param Types
+                      ^^ ^^ 2nd Param values
+                   -- Padding (same # bytes as bitfield)
+                ++ Bitfield (may be multiple bytes)
+             ** Last Step
+          ^^ Param value(s)
+```
+
+CMD 0x36: Write pattern to instrument. For example Kick1 (0x07) uses 0x17, followed by
+'last step' and 'bitfield' for 1st parameter.
+```
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 36 03 17 ...pattern data... f7'
+```
+
+Reading a more complicated pattern (factory #8)
+```
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 37 03 07 f7' -r temp.bin -t .1 ; hexdump -C temp.bin
+
+40 bytes read
+00000000  f0 00 21 1a 02 02 00 37  03 07 37 08 0f 53 14 01  |..!....7..7..S..|
+00000010  00 00 00 7f 7f 7f 7f 7f  7f 7f 00 0c 40 10 00 00  |............@...|
+00000020  7f 62 00 00 00 00 00 f7                           |.b......|
+00000028
+```
+
+Reading pattern length and swing.
+```
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 37 03 00 f7' -r temp.bin -t .1 ; hexdump -C temp.bin
+
+15 bytes read
+00000000  f0 00 21 1a 02 02 00 37  03 00 00 00 15 32 f7     |..!....7.....2.|
+                                                  ^^ swing (50..70)
+                                               ^^ length (1..64)
+0000000f
+```
+
 ## Device Configuration (Setup)
 
 CMD 0x21: Write setup parameter, need to enter 'setup mode' first with CMD 0x11
