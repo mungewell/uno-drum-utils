@@ -85,6 +85,11 @@ HHAT = Struct(
     "decay" / Byte,
 )
 
+FX = Struct(
+    "comp" / Byte,
+    "drive" / Byte,
+)
+
 DRUMS = Struct(
     "tom1" / DRUM,
     "tom2" / DRUM,
@@ -98,18 +103,20 @@ DRUMS = Struct(
     "closed_hh" / HHAT,
     "open_hh" / HHAT,
     "clap" / DRUM,
+    "fx" / FX,
 )
 
 UNODRP = Struct(
     Padding(13),            # not sure what these bytes do
     "drums" / Embedded(DRUMS),
-    Const(b"\x28\x0f\x00\x00\x64\x5f"),
+    Const(b"\x00\x00\x64\x5f"),
 )
 
 MIDI = Struct(
-    Padding(23),
+    Const(b"\xf0\x00\x21\x1a\x02\x02\x00\x37\x00\x00"),
+    Padding(13),
     "drums" / Embedded(DRUMS),
-    Const(b"\x28\x0f\x00\x00\x64\x5f\xf7"),
+    Const(b"\x00\x00\x64\x5f\xf7"),
 )
 
 #--------------------------------------------------
