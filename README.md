@@ -51,6 +51,7 @@ The patch name is not displayed on the device, but is stored and read back by
 the official patch editor application.
 
 CMD 0x29+0x01: Read back Kit name
+
 CMD 0x29+0x02: Read back Pattern name
 ```
 $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 29 01 64 00 f7' -r temp.bin -t 1 ; hexdump -C temp.bin
@@ -63,6 +64,7 @@ $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 29 01 64 00 f7' -r temp.bin -t 1 ; hex
 ```
 
 CMD 0x28+0x01: Write Kit name
+
 CMD 0x28+0x02: Write Pattern name
 ```
 $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 11 01 0a f7'
@@ -71,6 +73,42 @@ $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 28 01 63 01 55 4e 4f 2d 55 74 69 6c 73
 12 bytes read
 00000000  f0 00 21 1a 02 02 00 28  01 63 01 f7              |..!....(.c..|
 0000000c
+```
+## Kits
+
+The UNO-Drum can store 100 Kits, these can be editted by the offical
+app, which can also save/lod kits to the '.unodrp' files. The '.unodrp' 
+files appear to use the same format as the SysEx, but with different
+offset.
+
+Kits are basically a sequential list of drums and their parameters.
+```
+    Tom1 	(Type, Level, Tune, Decay)
+    Tom2 	(Type, Level, Tune, Decay)
+    Rim 	(Type, Level, Tune, Decay)
+    Cowbell 	(Type, Level, Tune, Decay)
+    Ride 	(Type, Level, Tune, Decay)
+    Cymbal 	(Type, Level, Tune, Decay)
+    Kick1 	(Type, Level, Tune, Snap, Decay, FM tune, FM amnt, Sweep)
+    Kick2	(Type, Level, Tune, Snap, Decay)
+    Snare	(Type, Level, Tune, Snap, Decay, Noise LPF)
+    Closed HH 	(Type, Level, Tune, Decay)
+    Open HH 	(Type, Level, Tune, Decay)
+    Clap 	(Type, Level, Tune, Decay)
+```
+
+CMD 0x37+0x00+0x00: Read current Kit
+```
+$ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 37 00 00 f7' -r temp.bin -t .1 ; hexdump -C temp.bin            
+
+85 bytes read
+00000000  f0 00 21 1a 02 02 00 37  00 00 01 01 03 03 01 04  |..!....7........|
+00000010  00 01 04 00 00 02 00 00  5b 4c 7f 00 4b 00 7f 00  |........[L..K...|
+00000020  7f 40 7f 00 52 00 03 00  63 40 7f 00 5f 40 7f 00  |.@..R...c@.._@..|
+00000030  78 43 50 35 12 6f 48 00  5d 2e 3c 7f 00 7f 29 3c  |xCP5.oH.].<...)<|
+00000040  0b 7f 00 7f 00 2b 00 7f  00 7c 00 7f 57 30 28 0f  |.....+...|..W0(.|
+00000050  00 00 64 5f f7                                    |..d_.|
+00000055
 ```
 
 ## Patterns
@@ -109,7 +147,7 @@ There are a number of parameters which can be recorded, these differ on the type
 instrument (as above) and each parameter type has it's own bitfield for 
 marking affected steps.
 
-CMD 0x37: Read Instrument in current Pattern, for example '0x07' for Kick1
+CMD 0x37+0x03+Inst: Read Instrument in current Pattern, for example '0x07' for Kick1
 ```
 $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 37 03 07 f7' -r temp.bin -t .1 ; hexdump -C temp.bin
 
@@ -138,8 +176,8 @@ bits in the bitfield determine how many param values are given.
           ^^ Param value(s)
 ```
 
-CMD 0x36: Write pattern to instrument. For example Kick1 (0x07) uses 0x17, followed by
-'last step' and 'bitfield' for 1st parameter.
+CMD 0x36+0x03+0x1x: Write pattern to instrument. For example Kick1 (0x07) uses 0x17, 
+followed by 'last step' and 'bitfield' for 1st parameter.
 ```
 $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 36 03 17 ...pattern data... f7'
 ```
@@ -155,7 +193,7 @@ $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 37 03 07 f7' -r temp.bin -t .1 ; hexdu
 00000028
 ```
 
-Reading pattern length and swing.
+CMD 0x37+0x03+0x00: Reading pattern length and swing.
 ```
 $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 37 03 00 f7' -r temp.bin -t .1 ; hexdump -C temp.bin
 

@@ -50,9 +50,9 @@ KICK1 = Struct(
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
+    "decay" / Byte,
     "fm_tune" / Byte,
     "fm_amt" / Byte,
-    "decay" / Byte,
     "sweep" / Byte,
 )
 
@@ -85,9 +85,7 @@ HHAT = Struct(
     "decay" / Byte,
 )
 
-
-UNODRP = Struct(
-    Padding(13),            # not sure what these bytes do
+DRUMS = Struct(
     "tom1" / DRUM,
     "tom2" / DRUM,
     "rim" / DRUM,
@@ -100,9 +98,19 @@ UNODRP = Struct(
     "closed_hh" / HHAT,
     "open_hh" / HHAT,
     "clap" / DRUM,
+)
+
+UNODRP = Struct(
+    Padding(13),            # not sure what these bytes do
+    "drums" / Embedded(DRUMS),
     Const(b"\x28\x0f\x00\x00\x64\x5f"),
 )
 
+MIDI = Struct(
+    Padding(23),
+    "drums" / Embedded(DRUMS),
+    Const(b"\x28\x0f\x00\x00\x64\x5f\xf7"),
+)
 
 #--------------------------------------------------
 def main():
@@ -113,6 +121,9 @@ def main():
     parser.add_option("-d", "--dump",
         help="dump configuration to text",
         action="store_true", dest="dump")
+    parser.add_option("-m", "--midi",
+        help="decode drums from midi dump (ie not '.unodrp' file)",
+        action="store_true", dest="midi")
 
     (options, args) = parser.parse_args()
     
@@ -127,7 +138,10 @@ def main():
     infile.close()
 
     if options.dump and data:
-        config = UNODRP.parse(data)
+        if options.midi:
+            config = MIDI.parse(data)
+        else:
+            config = UNODRP.parse(data)
         print(config)
 
 
