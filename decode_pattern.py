@@ -144,7 +144,8 @@ def main():
                 "kick1", "kick2", "snare", "closed_hh", "open_hh", "clap"]
         graphic = "..,,ooxxOOXX$$##"
         for line in range(1, 13):
-            decoded = decode_block(config['line'+str(line)]['blob'][4:])
+            start = 1 + config['line'+str(line)]['blob'].index(0x2e)
+            decoded = decode_block(config['line'+str(line)]['blob'][start:])
             if len(decoded) == 0:
                 continue
             length = decoded[0]
