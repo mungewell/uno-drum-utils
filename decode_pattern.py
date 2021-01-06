@@ -36,6 +36,70 @@ UNODRPT = Struct(
     Const(b"\x00"),
 )
 
+def encode_byte(byte):
+    # Mutate each byte according to UNO's scheme
+    if byte & 0x3f == 0:
+        byte = 0x2e
+    elif byte & 0x3f == 0x3f:
+        byte = 0x2b
+    elif byte > 0x74:
+        byte = (byte - 0x45)
+    elif byte > 0x5a:
+        byte = (byte + 0x06)
+
+    return byte
+
+def encode_block(data):
+    out = bytearray()
+
+    # pad to allow encoding
+    if len(data) % 3:
+        data.append(0)
+
+    # encode 3bytes to 4bytes (as per pattern file format)
+    while data:
+        if len(data) > 1:
+            out.append(encode_byte(0x40 +  (data[0] & 0x3f)))
+            out.append(encode_byte(0x40 + ((data[0] >> 6) & 0x03) + ((data[1] << 2) & 0x3c)))
+        if len(data) > 2:
+            out.append(encode_byte(0x40 + ((data[1] >> 4) & 0x0f) + ((data[2] << 4) & 0x30)))
+            out.append(encode_byte(0x40 + ((data[2] >> 2) & 0x1f)))
+        del data[:3]
+
+    return out
+
+def decode_byte(byte):
+    # Mutate each byte according to UNO's scheme
+    if byte == 0x2e:
+        byte = 0x00
+    elif byte == 0x2b:
+        byte = 0x3f
+    elif byte & 0x60 == 0x20:
+        byte += 0x05
+    elif byte & 0x60 == 0x60:
+        byte -= 0x46
+
+    return byte
+
+def decode_block(data):
+    temp = bytearray()
+    out = bytearray()
+
+    # pre-process bytes
+    for byte in data:
+        temp.append(decode_byte(byte))
+
+    # decode 4bytes into 3bytes
+    while temp:
+        if len(temp) > 1:
+            out.append( (temp[0] & 0x3f)       + ((temp[1] & 0x03) << 6))
+        if len(temp) > 2:
+            out.append(((temp[1] & 0x3c) >> 2) + ((temp[2] & 0x0f) << 4))
+        if len(temp) > 3:
+            out.append(((temp[2] & 0x30) >> 4) + ((temp[3] & 0x1f) << 2))
+        del temp[:4]
+
+    return out
 
 #--------------------------------------------------
 def main():
@@ -51,9 +115,6 @@ def main():
     parser.add_option("-s", "--summary",
         help="summarize config in human readable form",
         action="store_true", dest="summary")
-    parser.add_option("-x", "--xor",
-        help="XOR the BLOB with 0x2E",
-        action="store_true", dest="xor")
 
     (options, args) = parser.parse_args()
     
@@ -74,20 +135,46 @@ def main():
 
     if options.line and data:
         config = UNODRPT.parse(data)
-
-        if options.xor:
-           new = bytearray()
-           for byte in config['line'+str(options.line)]['blob']:
-               new.append(0x2e ^ int(byte))
-           config['line'+str(options.line)]['blob'] = new
-
-        #print("line %s :" % options.line)
         print(hexdump(config['line'+str(options.line)]['blob']))
 
     if options.summary and data:
         config = UNODRPT.parse(data)
-        for line in range(13):
-            print(line, hexdump(config['line'+str(line)]['blob']))
+
+        inst = ["", "tom1", "tom2", "rim", "cowbell", "ride", "cymbal", \
+                "kick1", "kick2", "snare", "closed_hh", "open_hh", "clap"]
+        graphic = "..,,ooxxOOXX$$##"
+        for line in range(1, 13):
+            decoded = decode_block(config['line'+str(line)]['blob'][4:])
+            if len(decoded) == 0:
+                continue
+            length = decoded[0]
+            out = [" "] * length
+
+            offset = 0
+            pcount = 0
+            while offset < len(decoded):
+                if decoded[offset] == 0:
+                    offset += 1
+                    pcount += 1
+                    continue
+
+                length = int(decoded[0]/7)+1
+                count = 0
+                loc = []
+                for loop in range(length):
+                    for bit in range(7):
+                        if (decoded[offset+loop+1] >> bit & 1) == 1:
+                            count += 1
+                            loc.append(loop*7 + bit)
+
+                if pcount == 0:
+                    for loop in range(count):
+                        out[loc[loop]] = graphic[decoded[offset + (2*length) + 1 + loop] >> 3]
+
+                offset += 2*length + count + 1
+                pcount += 1
+
+            print("%10.10s :%s" % (inst[line], "".join(out)))
 
 
 if __name__ == "__main__":
