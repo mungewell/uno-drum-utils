@@ -37,7 +37,7 @@ $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 33 64 f7' -r temp.bin -t 1 ; hexdump -
 0000001d
 ```
 
-CMD 0x33: Switch to Pattern xx (ie 99-> 0x63).
+CMD 0x35: Switch to Pattern xx (ie 99-> 0x63).
 ```
 $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 35 00 63 f7' -r temp.bin -t 1 ; hexdump -C temp.bin
 
