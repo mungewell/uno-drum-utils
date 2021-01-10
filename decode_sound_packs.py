@@ -13,32 +13,107 @@ from construct import *
 # requires:
 # https://github.com/construct/construct
 
+'''
+1 => 2byte : AA Ax
+2 => 3byte : AA AB BB
+3 => 5byte : AA AB BB CC Cx
+4 => 6byte : AA AB BB CC CD DD
+5 => 8byte : AA AB BB CC CD DD EE Ex
+6 => 9byte : AA AB BB CC CD DD EE EF FF
+'''
+
+class SampleBytes(Adapter):
+    def _decode(self, obj, context, path):
+        if obj % 2:
+            return int((3 * (obj+1)/2) - 1)
+        else:
+            return int(3 * obj/2)
+
+    def _encode(self, obj, context, path):
+        if obj % 3:
+            return int((2 * (obj+1)/3) - 1)
+        else:
+            return int(2 * obj/3)
+
 Sample = Struct(
-    "length" / Int24ul,                     # in 12bit samples
+    "length" / Peek(Int24ul),                     # in 12bit samples
+    "bytes" / SampleBytes(Int24ul),
     Const(b"\x7d\x53\x4d\x50\x00"),
 )
 
 Block = Struct(
     "counts" / Array(12, Byte),
-    "total" / Computed(sum([51,2,1])),      # Works
-    #"total" / Computed(sum(this.counts)),  # Hangs indefinately
+    "total" / Computed( \
+            this.counts[0] + this.counts[1] + this.counts[2] + this.counts[3] + \
+            this.counts[4] + this.counts[5] + this.counts[6] + this.counts[7] + \
+            this.counts[8] + this.counts[9] + this.counts[10] + this.counts[11]),
     "samples" / Array(this.total, Sample),
 )
 
 Header = Padded(0x12d, Struct(
-    Const(b"\x44\x66\x75\x53\x65"),
+    Const(b"DfuSe"),
     "param1" / Int32ul,
-    Padding(2),
-    Const(b"\x54\x61\x72\x67\x65\x74"),
-    Padding(5),
-    Const(b"\x50\x43\x4d\x20\x4c\x69\x62\x72\x61\x72"),
-    Padding(2),
-    "name" / PaddedString(100, "ascii"),
+    Const(b"\x00\x01"),
+    Const(b"Target"),
+    Const(b"\x01\x01\x00\x00\x00"),
+    Const(b"PCM Library"),
+    Const(b"\x20\x00"),
+    #"name" / PaddedString(100, "ascii"),
 ))
+
+'''
+Factory:
+00000000: 00 00 07 0C 7C 6A 03 00  48 00 63 19 1A 01 55 46  ....|j..H.c...UF
+00000010: 44 10 37 E4 92 92                                 D.7...
+
+$ python3 decode_sound_packs.py -d -u pack Uno_Drum_lib_Antology1.dfu | tail
+00000000: 00 00 00 00 96 36 85 60  03 00 48 00 63 19 1A 01  .....6.`..H.c...
+00000010: 55 46 44 10 98 20 E9 87                           UFD.. ..
+
+$ python3 decode_sound_packs.py -d -u pack Uno_Drum_lib_Antology2.dfu | tail
+00000000: 00 00 00 00 0E 2C 2E EE  03 00 48 00 63 19 1A 01  .....,....H.c...
+00000010: 55 46 44 10 23 19 BC 42                           UFD.#..B
+'''
+
+Footer = Struct(
+    Const(b"\x03\x00\x48\x00\x63\x19\x1A\x01\x55\x46\x44\x10"),
+    "param2" / Int32ul,
+)
 
 DFU = Struct(
     "header" / Header,
     "block" / Embedded(Block),
+    Padding(2),
+
+    "datalength" / Computed( \
+            this.samples[0].bytes + this.samples[1].bytes + \
+            this.samples[2].bytes + this.samples[3].bytes + \
+            this.samples[4].bytes + this.samples[5].bytes + \
+            this.samples[6].bytes + this.samples[7].bytes + \
+            this.samples[8].bytes + this.samples[9].bytes + \
+            this.samples[10].bytes + this.samples[11].bytes + \
+            this.samples[12].bytes + this.samples[13].bytes + \
+            this.samples[14].bytes + this.samples[15].bytes + \
+            this.samples[16].bytes + this.samples[17].bytes + \
+            this.samples[18].bytes + this.samples[19].bytes + \
+            this.samples[20].bytes + this.samples[21].bytes + \
+            this.samples[22].bytes + this.samples[23].bytes + \
+            this.samples[24].bytes + this.samples[25].bytes + \
+            this.samples[26].bytes + this.samples[27].bytes + \
+            this.samples[28].bytes + this.samples[29].bytes + \
+            this.samples[30].bytes + this.samples[31].bytes + \
+            this.samples[32].bytes + this.samples[33].bytes + \
+            this.samples[34].bytes + this.samples[35].bytes + \
+            this.samples[36].bytes + this.samples[37].bytes + \
+            this.samples[38].bytes + this.samples[39].bytes + \
+            this.samples[40].bytes + this.samples[41].bytes + \
+            this.samples[42].bytes + this.samples[43].bytes + \
+            this.samples[44].bytes + this.samples[45].bytes + \
+            this.samples[46].bytes + this.samples[47].bytes + \
+            this.samples[48].bytes + this.samples[49].bytes + \
+            this.samples[50].bytes + this.samples[51].bytes + \
+            this.samples[52].bytes + this.samples[53].bytes),
+    "data" / Bytes(this.datalength),
 )
 
 def unpack_samples(data, length):
@@ -115,12 +190,15 @@ def main():
             print("total samples:", sum(config["counts"]))
 
             total = 0
+            btotal = 0
             count = 1
             for sample in config["samples"]:
-                print(count, hex(sample["length"]))
+                #print(count, sample["length"], sample["bytes"])
                 total += sample["length"]
+                btotal += sample["bytes"]
                 count += 1
-            print("Total length", hex(total), total)
+            print("Sample length", total)
+            print("Bytes length", btotal)
 
         if options.unpack:
             path = os.path.join(os.getcwd(), options.unpack) 
@@ -130,7 +208,8 @@ def main():
             os.mkdir(path)
 
             count = 1
-            data = data[0x2e8:]
+            #data = data[0x2e8:]
+            data = config['data']
             for sample in config["samples"]:
                 unpacked, consumed = unpack_samples(data, sample['length'])
 
