@@ -247,9 +247,9 @@ Default values:
 00000000  f0 00 21 1a 02 02 00 22  00 0a 01 f7              |
 00000000  f0 00 21 1a 02 02 00 22  00 0b 01 f7              | MIDI Interface Mode
 00000000  f0 00 21 1a 02 02 00 22  00 0c 00 f7              | MIDI Clock Sync
-00000000  f0 00 21 1a 02 02 00 22  00 0d 00 f7              | Metronome, Off/On
+00000000  f0 00 21 1a 02 02 00 22  00 0d 00 f7              | Metronome, Off/On/Play (CC-76)
 00000000  f0 00 21 1a 02 02 00 22  00 0e 00 f7              | Pad Velocity, Off/On
-00000000  f0 00 21 1a 02 02 00 22  00 0f 0a f7              |
+00000000  f0 00 21 1a 02 02 00 22  00 0f 0a f7              | Pad Note Length (CC-77)
 00000000  f0 00 21 1a 02 02 00 22  00 10 01 f7              | Stutter Type
 00000000  f0 00 21 1a 02 02 00 22  00 11 07 f7              | Stutter Amount
 00000000  f0 00 21 1a 02 02 00 22  00 12 32 f7              |
