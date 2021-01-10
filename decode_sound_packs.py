@@ -3,10 +3,9 @@
 # Script decode 'sound packs' for UNO Drum
 # (c) Simon Wood, 7 Jan 2021
 #
-# Sample file can be converted:
+# Sample '.raw' file can be converted:
 # sox -B -c 1 -b 16 -e signed -r 32000 sample_01.raw sample_01.wav
 
-import os, sys
 from construct import *
 
 #--------------------------------------------------
@@ -74,6 +73,9 @@ def unpack_samples(data, length):
 
 #--------------------------------------------------
 def main():
+    import sys
+    import os
+    import wave
     from optparse import OptionParser
 
     usage = "usage: %prog [options] FILENAME"
@@ -86,8 +88,11 @@ def main():
         action="store_true", dest="summary")
 
     parser.add_option("-u", "--unpack",
-        help="unpack Samples/SysEx to UNPACK directory",
+        help="unpack Samples to UNPACK directory",
         dest="unpack")
+    parser.add_option("-R", "--raw",
+        help="use '.raw' sample files (rather than '.wav')",
+        action="store_true", dest="raw")
 
     (options, args) = parser.parse_args()
     
@@ -118,7 +123,6 @@ def main():
             print("Total length", hex(total), total)
 
         if options.unpack:
-            # very crude slicing of samples (12bit, 32KHz)
             path = os.path.join(os.getcwd(), options.unpack) 
             if os.path.exists(path): 
                 sys.exit("Directory %s already exists" % path) 
@@ -128,14 +132,24 @@ def main():
             count = 1
             data = data[0x2e8:]
             for sample in config["samples"]:
-                name = os.path.join(path, "sample_{0:0=2d}.raw".format(count)) 
-
-                outfile = open(name, "wb")
                 unpacked, consumed = unpack_samples(data, sample['length'])
 
-                for value in unpacked:
-                    outfile.write(value.to_bytes(2, byteorder='little'))
-                outfile.close()
+                if options.raw:
+                    name = os.path.join(path, "sample_{0:0=2d}.raw".format(count))
+                    outfile = open(name, "wb")
+                    for value in unpacked:
+                        outfile.write(value.to_bytes(2, byteorder='little'))
+                    outfile.close()
+                else:
+                    name = os.path.join(path, "sample_{0:0=2d}.wav".format(count))
+                    outfile = wave.open(name, "wb")
+                    outfile.setsampwidth(2)
+                    outfile.setnchannels(1)
+                    outfile.setframerate(32000)
+
+                    for value in unpacked:
+                        outfile.writeframesraw(value.to_bytes(2, byteorder='big'))
+                    outfile.close()
 
                 data = data[consumed:]
                 count += 1
