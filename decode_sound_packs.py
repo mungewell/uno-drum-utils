@@ -117,13 +117,6 @@ DFU = Struct(
 )
 
 def unpack_samples(data, length):
-    '''
-    LE 12bit
-    0000BBBB AAAAAAAA
-    0000CCCC CCCCBBBB
-    0000EEEE DDDDDDDD
-    0000FFFF FFFFEEEE
-    '''
     phase = 0
     value = 0
     consumed = 0
@@ -146,12 +139,34 @@ def unpack_samples(data, length):
 
     return unpacked, consumed
 
+def pack_samples(unpacked):
+    # pack 12bit data to bytestring
+    packed = bytearray()
+    phase = 0
+    bnext = 0
+
+    for value in unpacked:
+        if phase == 0:
+            packed.append(value & 0x00FF)
+            bnext = (value >> 8 & 0x000F)
+            phase += 1
+        else:
+            packed.append((value << 4 & 0x00F0) + bnext)
+            packed.append(value >> 4 & 0x00FF)
+            phase = 0
+
+    if phase == 1:
+        packed.append(bnext)
+
+    return packed
+
 #--------------------------------------------------
 def main():
     import sys
     import os
     import wave
     from optparse import OptionParser
+    from hexdump import hexdump
 
     usage = "usage: %prog [options] FILENAME"
     parser = OptionParser(usage)
@@ -165,6 +180,10 @@ def main():
     parser.add_option("-u", "--unpack",
         help="unpack Samples to UNPACK directory",
         dest="unpack")
+    parser.add_option("-r", "--replace",
+        help="pack REPLACE directory of samples to DFU " + \
+            "(overwrites contents, either padded or clipped to original size)",
+        dest="replace")
     parser.add_option("-R", "--raw",
         help="use '.raw' sample files (rather than '.wav')",
         action="store_true", dest="raw")
@@ -227,10 +246,58 @@ def main():
                     outfile.setframerate(32000)
 
                     for value in unpacked:
-                        outfile.writeframesraw(value.to_bytes(2, byteorder='big'))
+                        outfile.writeframesraw(value.to_bytes(2, byteorder='little'))
                     outfile.close()
 
                 data = data[consumed:]
+                count += 1
+
+        if options.replace:
+            path = os.path.join(os.getcwd(), options.replace)
+            if not os.path.exists(path):
+                sys.exit("Directory %s does not exist" % path)
+
+            count = 1
+            data = config['data']
+            for sample in config["samples"]:
+                unpacked = []
+                if options.raw:
+                    name = os.path.join(path, "sample_{0:0=2d}.raw".format(count))
+                    if os.path.isfile(name):
+                        infile = open(name, "rb")
+                        if infile:
+                            for temp in range(sample["length"]):
+                                value = infile.read(2)
+                                unpacked.append(int.from_bytes(value, byteorder='little'))
+                            infile.close()
+                    else:
+                        # clear sample
+                        unpacked = [0] * sample['length']
+
+                else:
+                    name = os.path.join(path, "sample_{0:0=2d}.wav".format(count))
+                    if os.path.isfile(name):
+                        infile = wave.open(name, "rb")
+                        if infile:
+                            # checks
+                            if infile.getnchannels() != 1:
+                                sys.exit("Samples should be 1 channel: %s" % name)
+                            if infile.getsampwidth() != 2:
+                                sys.exit("Samples should be 16 bit: %s" % name)
+                            if infile.getframerate() != 32000:
+                                sys.exit("Samples should be 3200KHz: %s" % name)
+
+                            for temp in range(sample["length"]):
+                                value = infile.readframes(1)
+                                unpacked.append(int.from_bytes(value, byteorder='little'))
+                            infile.close()
+                    else:
+                        # clear sample
+                        unpacked = [0] * sample['length']
+
+                packed = pack_samples(unpacked)
+                # TODO: need to merge new data into existing DFU
+
                 count += 1
 
 
