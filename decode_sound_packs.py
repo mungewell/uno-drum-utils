@@ -51,7 +51,7 @@ Data = Struct(
     "data" / Bytes(lambda this: this._.samples[this._index].bytes),
 )
 
-Header = Padded(0x12d, Struct(
+Header = Padded(0x115, Struct(
     Const(b"DfuSe"),
     "param1" / Int32ul,
     Const(b"\x00\x01"),
@@ -59,7 +59,7 @@ Header = Padded(0x12d, Struct(
     Const(b"\x01\x01\x00\x00\x00"),
     Const(b"PCM Library"),
     Const(b"\x20\x00"),
-    #"name" / PaddedString(100, "ascii"),
+    "name" / PaddedString(100, "ascii"),
 ))
 
 '''
@@ -77,16 +77,31 @@ $ python3 decode_sound_packs.py -d -u pack Uno_Drum_lib_Antology2.dfu | tail
 '''
 
 Footer = Struct(
-    Const(b"\x03\x00\x48\x00\x63\x19\x1A\x01\x55\x46\x44\x10"),
-    "param2" / Int32ul,
+    Const(b"\x0C\x7C\x6A"),
+    "BCD" / Const(b"\x03\x00"),
+    "PID" / Const(b"\x48\x00"),
+    "VID" / Const(b"\x63\x19"),
+    "BCD_DFU" / Const(b"\x1A\x01"),
+    Const(b"UFD"),
+    "LENGTH" / Const(b"\x10"),
+
+    "crc32" / Int32ul,              # Python CRC32 ^ 0xffffffff
 )
 
 DFU = Struct(
     "header" / Header,
+
+    "param1" / Int32ul,
+    Const(b"\x01\x00\x00\x00\x00\x00\x04\x08"),
+    "param2" / Int32ul,
+    Const(b"\x00\x00\x00\x00"),
+    "param3" / Int32ul,
+
     "block" / Embedded(Block),
-    Padding(2),
+    "param4" / Int16ul,
 
     "data" / Array(this.total, Data),
+    "footer" / Footer,
 )
 
 def unpack_samples(data):
@@ -134,7 +149,6 @@ def main():
     import os
     import wave
     from optparse import OptionParser
-    from hexdump import hexdump
 
     usage = "usage: %prog [options] FILENAME"
     parser = OptionParser(usage)
@@ -157,6 +171,10 @@ def main():
     parser.add_option("-R", "--raw",
         help="use '.raw' sample files (rather than '.wav')",
         action="store_true", dest="raw")
+
+    parser.add_option("-t", "--test",
+        help="scripted test, dev use only",
+        action="store_true", dest="test")
 
     (options, args) = parser.parse_args()
     
@@ -199,20 +217,20 @@ def main():
                 unpacked = unpack_samples(data.data)
 
                 if options.raw:
-                    name = os.path.join(path, "sample_{0:0=2d}.raw".format(count))
+                    name = os.path.join(path, "sample-{0:0=2d}.raw".format(count))
                     outfile = open(name, "wb")
                     for value in unpacked:
                         outfile.write(value.to_bytes(2, byteorder='little'))
                     outfile.close()
                 else:
-                    name = os.path.join(path, "sample_{0:0=2d}.wav".format(count))
+                    name = os.path.join(path, "sample-{0:0=2d}.wav".format(count))
                     outfile = wave.open(name, "wb")
                     outfile.setsampwidth(2)
                     outfile.setnchannels(1)
                     outfile.setframerate(32000)
 
                     for value in unpacked:
-                        outfile.writeframesraw(value.to_bytes(2, byteorder='little'))
+                        outfile.writeframesraw(value.to_bytes(2, byteorder='big'))
                     outfile.close()
 
                 count += 1
@@ -226,7 +244,7 @@ def main():
             for sample in config["samples"]:
                 unpacked = []
                 if options.raw:
-                    name = os.path.join(path, "sample_{0:0=2d}.raw".format(count))
+                    name = os.path.join(path, "sample-{0:0=2d}.raw".format(count))
                     if os.path.isfile(name):
                         infile = open(name, "rb")
                         if infile:
@@ -236,7 +254,7 @@ def main():
                             infile.close()
 
                 else:
-                    name = os.path.join(path, "sample_{0:0=2d}.wav".format(count))
+                    name = os.path.join(path, "sample-{0:0=2d}.wav".format(count))
                     if os.path.isfile(name):
                         infile = wave.open(name, "rb")
                         if infile:
@@ -250,7 +268,7 @@ def main():
 
                             for temp in range(sample["length"]):
                                 value = infile.readframes(1)
-                                unpacked.append(int.from_bytes(value, byteorder='little'))
+                                unpacked.append(int.from_bytes(value, byteorder='big'))
                             infile.close()
 
                 if len(unpacked):
