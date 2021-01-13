@@ -43,11 +43,12 @@ Sample = Struct(
 
 Block = Struct(
     "counts" / Array(12, Byte),
-    "total" / Computed( \
-            this.counts[0] + this.counts[1] + this.counts[2] + this.counts[3] + \
-            this.counts[4] + this.counts[5] + this.counts[6] + this.counts[7] + \
-            this.counts[8] + this.counts[9] + this.counts[10] + this.counts[11]),
+    "total" / Computed(lambda this: sum(this.counts)),
     "samples" / Array(this.total, Sample),
+)
+
+Data = Struct(
+    "data" / Bytes(lambda this: this._.samples[this._index].bytes),
 )
 
 Header = Padded(0x12d, Struct(
@@ -85,48 +86,18 @@ DFU = Struct(
     "block" / Embedded(Block),
     Padding(2),
 
-    "datalength" / Computed( \
-            this.samples[0].bytes + this.samples[1].bytes + \
-            this.samples[2].bytes + this.samples[3].bytes + \
-            this.samples[4].bytes + this.samples[5].bytes + \
-            this.samples[6].bytes + this.samples[7].bytes + \
-            this.samples[8].bytes + this.samples[9].bytes + \
-            this.samples[10].bytes + this.samples[11].bytes + \
-            this.samples[12].bytes + this.samples[13].bytes + \
-            this.samples[14].bytes + this.samples[15].bytes + \
-            this.samples[16].bytes + this.samples[17].bytes + \
-            this.samples[18].bytes + this.samples[19].bytes + \
-            this.samples[20].bytes + this.samples[21].bytes + \
-            this.samples[22].bytes + this.samples[23].bytes + \
-            this.samples[24].bytes + this.samples[25].bytes + \
-            this.samples[26].bytes + this.samples[27].bytes + \
-            this.samples[28].bytes + this.samples[29].bytes + \
-            this.samples[30].bytes + this.samples[31].bytes + \
-            this.samples[32].bytes + this.samples[33].bytes + \
-            this.samples[34].bytes + this.samples[35].bytes + \
-            this.samples[36].bytes + this.samples[37].bytes + \
-            this.samples[38].bytes + this.samples[39].bytes + \
-            this.samples[40].bytes + this.samples[41].bytes + \
-            this.samples[42].bytes + this.samples[43].bytes + \
-            this.samples[44].bytes + this.samples[45].bytes + \
-            this.samples[46].bytes + this.samples[47].bytes + \
-            this.samples[48].bytes + this.samples[49].bytes + \
-            this.samples[50].bytes + this.samples[51].bytes + \
-            this.samples[52].bytes + this.samples[53].bytes),
-    "data" / Bytes(this.datalength),
+    "data" / Array(this.total, Data),
 )
 
-def unpack_samples(data, length):
+def unpack_samples(data):
     phase = 0
     value = 0
-    consumed = 0
 
     # unpack data to into array of 12bit samples
     unpacked = []
     for byte in data:
         value = (value >> 8) + (byte << 8)
         phase += 1
-        consumed += 1
 
         if phase == 2:
             unpacked.append((value & 0x0FFF))
@@ -134,10 +105,7 @@ def unpack_samples(data, length):
             unpacked.append((value >> 4 & 0x0FFF))
             phase = 0
 
-        if len(unpacked) >= length:
-            return unpacked, consumed
-
-    return unpacked, consumed
+    return unpacked
 
 def pack_samples(unpacked):
     # pack 12bit data to bytestring
@@ -176,6 +144,8 @@ def main():
     parser.add_option("-s", "--summary",
         help="summarize DFU as human readable text",
         action="store_true", dest="summary")
+    parser.add_option("-o", "--output", dest="outfile",
+        help="write data to OUTFILE")
 
     parser.add_option("-u", "--unpack",
         help="unpack Samples to UNPACK directory",
@@ -202,8 +172,6 @@ def main():
 
     if data:
         config = DFU.parse(data)
-        if options.dump:
-            print(config)
 
         if options.summary:
             print("total samples:", sum(config["counts"]))
@@ -227,10 +195,8 @@ def main():
             os.mkdir(path)
 
             count = 1
-            #data = data[0x2e8:]
-            data = config['data']
-            for sample in config["samples"]:
-                unpacked, consumed = unpack_samples(data, sample['length'])
+            for data in config["data"]:
+                unpacked = unpack_samples(data.data)
 
                 if options.raw:
                     name = os.path.join(path, "sample_{0:0=2d}.raw".format(count))
@@ -249,7 +215,6 @@ def main():
                         outfile.writeframesraw(value.to_bytes(2, byteorder='little'))
                     outfile.close()
 
-                data = data[consumed:]
                 count += 1
 
         if options.replace:
@@ -258,7 +223,6 @@ def main():
                 sys.exit("Directory %s does not exist" % path)
 
             count = 1
-            data = config['data']
             for sample in config["samples"]:
                 unpacked = []
                 if options.raw:
@@ -270,9 +234,6 @@ def main():
                                 value = infile.read(2)
                                 unpacked.append(int.from_bytes(value, byteorder='little'))
                             infile.close()
-                    else:
-                        # clear sample
-                        unpacked = [0] * sample['length']
 
                 else:
                     name = os.path.join(path, "sample_{0:0=2d}.wav".format(count))
@@ -291,15 +252,20 @@ def main():
                                 value = infile.readframes(1)
                                 unpacked.append(int.from_bytes(value, byteorder='little'))
                             infile.close()
-                    else:
-                        # clear sample
-                        unpacked = [0] * sample['length']
 
-                packed = pack_samples(unpacked)
-                # TODO: need to merge new data into existing DFU
-
+                if len(unpacked):
+                    config['data'][count-1].data = bytes(pack_samples(unpacked))
                 count += 1
 
+        if options.dump:
+            print(config)
+
+        if options.outfile:
+            outfile = open(options.outfile, "wb")
+
+            if outfile:
+                outfile.write(DFU.build(config))
+                outfile.close
 
 if __name__ == "__main__":
     main()
