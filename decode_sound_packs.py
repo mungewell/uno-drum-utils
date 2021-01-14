@@ -24,16 +24,10 @@ from construct import *
 
 class SampleBytes(Adapter):
     def _decode(self, obj, context, path):
-        if obj % 2:
-            return int((3 * (obj+1)/2) - 1)
-        else:
-            return int(3 * obj/2)
+        return int((obj * 12/8) + 0.5)
 
     def _encode(self, obj, context, path):
-        if obj % 3:
-            return int((2 * (obj+1)/3) - 1)
-        else:
-            return int(2 * obj/3)
+        return int(obj * 2/3)
 
 Sample = Struct(
     "length" / Peek(Int24ul),                     # in 12bit samples
@@ -41,14 +35,23 @@ Sample = Struct(
     Const(b"\x7d\x53\x4d\x50\x00"),
 )
 
-Block = Struct(
-    "counts" / Array(12, Byte),
-    "total" / Computed(lambda this: sum(this.counts)),
-    "samples" / Array(this.total, Sample),
-)
-
 Data = Struct(
     "data" / Bytes(lambda this: this._.samples[this._index].bytes),
+)
+
+Block = Struct(
+    Const(b"\x04\x08"),
+    "length1" / Int32ul,
+    Const(b"\x00\x00\x00\x00"),
+    "length2" / Int32ul,
+    Check(this.length1 == this.length2),
+
+    "elements" / Array(12, Byte),
+    "total" / Computed(lambda this: sum(this.elements)),
+    "samples" / Array(this.total, Sample),
+
+    "param4" / Int16ul,
+    "data" / Array(this.total, Data),
 )
 
 Header = Padded(0x115, Struct(
@@ -59,28 +62,13 @@ Header = Padded(0x115, Struct(
     Const(b"\x01\x01\x00\x00\x00"),
     Const(b"PCM Library"),
     Const(b"\x20\x00"),
-    "name" / PaddedString(100, "ascii"),
+    #"name" / PaddedString(100, "ascii"),
 ))
 
-'''
-Factory:
-00000000: 00 00 07 0C 7C 6A 03 00  48 00 63 19 1A 01 55 46  ....|j..H.c...UF
-00000010: 44 10 37 E4 92 92                                 D.7...
-
-$ python3 decode_sound_packs.py -d -u pack Uno_Drum_lib_Antology1.dfu | tail
-00000000: 00 00 00 00 96 36 85 60  03 00 48 00 63 19 1A 01  .....6.`..H.c...
-00000010: 55 46 44 10 98 20 E9 87                           UFD.. ..
-
-$ python3 decode_sound_packs.py -d -u pack Uno_Drum_lib_Antology2.dfu | tail
-00000000: 00 00 00 00 0E 2C 2E EE  03 00 48 00 63 19 1A 01  .....,....H.c...
-00000010: 55 46 44 10 23 19 BC 42                           UFD.#..B
-'''
-
 Footer = Struct(
-    Const(b"\x0C\x7C\x6A"),
     "BCD" / Const(b"\x03\x00"),
     "PID" / Const(b"\x48\x00"),
-    "VID" / Const(b"\x63\x19"),
+    "VID" / Bytes(2),               # Const(b"\x63\x19"),
     "BCD_DFU" / Const(b"\x1A\x01"),
     Const(b"UFD"),
     "LENGTH" / Const(b"\x10"),
@@ -92,16 +80,11 @@ DFU = Struct(
     "header" / Header,
 
     "param1" / Int32ul,
-    Const(b"\x01\x00\x00\x00\x00\x00\x04\x08"),
-    "param2" / Int32ul,
-    Const(b"\x00\x00\x00\x00"),
-    "param3" / Int32ul,
+    Const(b"\x01\x00\x00\x00\x00\x00"),
 
     "block" / Embedded(Block),
-    "param4" / Int16ul,
 
-    "data" / Array(this.total, Data),
-    "footer" / Footer,
+    #"footer" / Footer,
 )
 
 def unpack_samples(data):
@@ -192,7 +175,7 @@ def main():
         config = DFU.parse(data)
 
         if options.summary:
-            print("total samples:", sum(config["counts"]))
+            print("total samples:", config["total"])
 
             total = 0
             btotal = 0
@@ -204,6 +187,8 @@ def main():
                 count += 1
             print("Sample length", total)
             print("Bytes length", btotal)
+
+            print("delta", int(config["length2"]) - btotal - 456)
 
         if options.unpack:
             path = os.path.join(os.getcwd(), options.unpack) 
