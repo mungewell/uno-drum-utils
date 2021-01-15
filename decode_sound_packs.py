@@ -27,13 +27,11 @@ Sample = Struct(
 )
 
 Data = Struct(
-    "unknown" / Int16ul,
-    "data" / Bytes(lambda this: this._.samples[this._index].bytes - 2), # hacky fix
+    "data" / Bytes(lambda this: this._.samples[this._index].bytes),
 )
 
 Block = Struct(
-    Const(b"\x04\x08"),
-    "length1" / Int32ul,
+    "length1" / Int32ul,            # this block is this long...
     Const(b"\x00\x00\x00\x00"),
     "length2" / Int32ul,
     Check(this.length1 == this.length2),
@@ -73,43 +71,52 @@ DFU = Struct(
     "header" / Header,
 
     "param1" / Int32ul,
-    Const(b"\x01\x00\x00\x00\x00\x00"),
+    Const(b"\x01\x00\x00\x00\x00\x00\x04\x08"),
 
     "block" / Embedded(Block),
 
     "peek" / Hex(Peek(Bytes(4))),
-    "checksum" / Int32ul,           # this may be wrong...
+    "checksum" / Int32ul,
     "footer" / Footer,
 )
 
 def unpack_samples(data):
     phase = 0
-    value = 0
     prev = 0
+    comb = 0
 
     # unpack data to into array of 12bit samples
     unpacked = []
     for byte in data:
         phase += 1
+        if phase == 1:
+            comb = byte
         if phase == 2:
-            # aa _A       = 0Aaa < This one works...
+            # aa _A       = 0Aaa < This one works.. when we skip 1st 2 bytes
             # aa _A       = 0aaA
             # aa A_       = 0Aaa
             # aa A_       = 0aaA
-            unpacked.append((byte << 8 & 0x0F00) + (prev << 0))
+            # AB aa bb AB aa bb AB aa bb ... would also fit pattern <<<<
+            # BA aa bb BA aa bb BA aa bb ... would also fit pattern
+
+            #unpacked.append((byte << 8 & 0x0F00) + (prev << 0))
             #unpacked.append((byte << 0 & 0x000F) + (prev << 4))
             #unpacked.append((byte << 4 & 0x0F00) + (prev << 0))
             #unpacked.append((byte >> 4 & 0x000F) + (prev << 4))
+            unpacked.append((comb >> 4 & 0x000F) + (byte << 4))
+            #unpacked.append((comb >> 0 & 0x000F) + (byte << 4))
             #unpacked.append(value)
         elif phase == 3:
             # aa bA BB    = 0BBb <
             # aa bA BB    = 0bBB
             # aa Ab BB    = 0BBb
             # aa Ab BB    = 0bBB
-            unpacked.append((byte << 4) + (prev >> 4 & 0x000F))
+            #unpacked.append((byte << 4) + (prev >> 4 & 0x000F))
             #unpacked.append((byte << 0) + (prev << 4 & 0x0F00))
             #unpacked.append((byte << 4) + (prev >> 0 & 0x000F))
             #unpacked.append((byte << 0) + (prev << 8 & 0x0F00))
+            unpacked.append((comb << 8 & 0x0F00) + (byte << 0))
+            #unpacked.append((comb << 4 & 0x0F00) + (byte << 0))
             #unpacked.append(0)
             phase = 0
 
@@ -121,20 +128,38 @@ def pack_samples(unpacked):
     # pack 12bit data to bytestring
     packed = bytearray()
     phase = 0
+    '''
     bnext = 0
-
     for value in unpacked:
-        if phase == 0:
+        phase += 1
+        if phase == 1:
             packed.append(value & 0x00FF)
             bnext = (value >> 8 & 0x000F)
-            phase += 1
-        else:
+        if phase == 2:
             packed.append((value << 4 & 0x00F0) + bnext)
             packed.append(value >> 4 & 0x00FF)
             phase = 0
 
     if phase == 1:
         packed.append(bnext)
+    '''
+    comb = 0
+    for value in unpacked:
+        phase += 1
+        if phase == 1:
+            comb = (value & 0x000F) << 4    # A_ aa
+            data = (value & 0x0FF0) >> 4
+        if phase == 2:
+            comb |= (value & 0x0F00) >> 8   # AB aa bb
+            packed.append(comb)
+            packed.append(data)
+            packed.append(value & 0x00FF)
+            phase = 0
+
+    if phase == 1:
+        # haven't stored this data yet...
+        packed.append(comb)
+        packed.append(data)
 
     return packed
 
@@ -144,6 +169,9 @@ def main():
     import os
     import wave
     from optparse import OptionParser
+
+    from hexdump import hexdump
+    import binascii
 
     usage = "usage: %prog [options] FILENAME"
     parser = OptionParser(usage)
@@ -194,13 +222,23 @@ def main():
             count = 1
             for sample in config["samples"]:
                 #print(count, sample["length"], sample["bytes"])
+                #print(hexdump(config['data'][count-1]['data'][:10]))
                 total += sample["length"]
                 btotal += sample["bytes"]
                 count += 1
             print("Sample length", total)
             print("Bytes length", btotal)
 
-            print("delta", int(config["length2"]) - btotal - 456)
+            print("param1", config['param1'])
+            print("length1", config['length1'])
+
+            # attempt to figure out what is checksum'ed
+            print("checksum", hex(int(config["checksum"])))
+            block = Block.build(config)
+            crc32 = binascii.crc32(block)
+            print("CRC32:", hex(crc32), len(block))
+            print("CRC32:", hex(crc32 ^ 0xffffffff), len(block))
+            print(hex(crc32 ^ int(config["checksum"])))
 
         if options.unpack:
             path = os.path.join(os.getcwd(), options.unpack) 
@@ -269,7 +307,7 @@ def main():
                             infile.close()
 
                 if len(unpacked):
-                    config['data'][count-1].data = bytes(pack_samples(unpacked))[:-2] # hacky fix
+                    config['data'][count-1].data = bytes(pack_samples(unpacked))
                 count += 1
 
         if options.dump:
