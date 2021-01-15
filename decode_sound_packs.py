@@ -13,15 +13,6 @@ from construct import *
 # requires:
 # https://github.com/construct/construct
 
-'''
-1 => 2byte : AA Ax
-2 => 3byte : AA AB BB
-3 => 5byte : AA AB BB CC Cx
-4 => 6byte : AA AB BB CC CD DD
-5 => 8byte : AA AB BB CC CD DD EE Ex
-6 => 9byte : AA AB BB CC CD DD EE EF FF
-'''
-
 class SampleBytes(Adapter):
     def _decode(self, obj, context, path):
         return int((obj * 12/8) + 0.5)
@@ -30,13 +21,14 @@ class SampleBytes(Adapter):
         return int(obj * 2/3)
 
 Sample = Struct(
-    "length" / Peek(Int24ul),                     # in 12bit samples
-    "bytes" / SampleBytes(Int24ul),
+    "length" / Peek(Int24ul),           # in 12bit samples
+    "bytes" / SampleBytes(Int24ul),     # in bytes
     Const(b"\x7d\x53\x4d\x50\x00"),
 )
 
 Data = Struct(
-    "data" / Bytes(lambda this: this._.samples[this._index].bytes),
+    "unknown" / Int16ul,
+    "data" / Bytes(lambda this: this._.samples[this._index].bytes - 2), # hacky fix
 )
 
 Block = Struct(
@@ -50,8 +42,9 @@ Block = Struct(
     "total" / Computed(lambda this: sum(this.elements)),
     "samples" / Array(this.total, Sample),
 
-    "param4" / Int16ul,
-    "data" / Array(this.total, Data),
+    "data" / Padded(lambda this: this.length1 - 456,    # seems that there may be padding
+        Array(this.total, Data),                        # maybe needs to be multiple of 4...
+    ),
 )
 
 Header = Padded(0x115, Struct(
@@ -84,24 +77,43 @@ DFU = Struct(
 
     "block" / Embedded(Block),
 
-    #"footer" / Footer,
+    "peek" / Hex(Peek(Bytes(4))),
+    "checksum" / Int32ul,           # this may be wrong...
+    "footer" / Footer,
 )
 
 def unpack_samples(data):
     phase = 0
     value = 0
+    prev = 0
 
     # unpack data to into array of 12bit samples
     unpacked = []
     for byte in data:
-        value = (value >> 8) + (byte << 8)
         phase += 1
-
         if phase == 2:
-            unpacked.append((value & 0x0FFF))
+            # aa _A       = 0Aaa < This one works...
+            # aa _A       = 0aaA
+            # aa A_       = 0Aaa
+            # aa A_       = 0aaA
+            unpacked.append((byte << 8 & 0x0F00) + (prev << 0))
+            #unpacked.append((byte << 0 & 0x000F) + (prev << 4))
+            #unpacked.append((byte << 4 & 0x0F00) + (prev << 0))
+            #unpacked.append((byte >> 4 & 0x000F) + (prev << 4))
+            #unpacked.append(value)
         elif phase == 3:
-            unpacked.append((value >> 4 & 0x0FFF))
+            # aa bA BB    = 0BBb <
+            # aa bA BB    = 0bBB
+            # aa Ab BB    = 0BBb
+            # aa Ab BB    = 0bBB
+            unpacked.append((byte << 4) + (prev >> 4 & 0x000F))
+            #unpacked.append((byte << 0) + (prev << 4 & 0x0F00))
+            #unpacked.append((byte << 4) + (prev >> 0 & 0x000F))
+            #unpacked.append((byte << 0) + (prev << 8 & 0x0F00))
+            #unpacked.append(0)
             phase = 0
+
+        prev = int(byte)
 
     return unpacked
 
@@ -257,7 +269,7 @@ def main():
                             infile.close()
 
                 if len(unpacked):
-                    config['data'][count-1].data = bytes(pack_samples(unpacked))
+                    config['data'][count-1].data = bytes(pack_samples(unpacked))[:-2] # hacky fix
                 count += 1
 
         if options.dump:
