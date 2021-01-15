@@ -31,7 +31,9 @@ Data = Struct(
 )
 
 Block = Struct(
-    "length1" / Int32ul,            # this block is this long...
+    Const(b"\x01\x00\x00\x00\x00\x00\x04\x08"),
+
+    "length1" / Int32ul,
     Const(b"\x00\x00\x00\x00"),
     "length2" / Int32ul,
     Check(this.length1 == this.length2),
@@ -69,13 +71,10 @@ Footer = Struct(
 
 DFU = Struct(
     "header" / Header,
-
-    "param1" / Int32ul,
-    Const(b"\x01\x00\x00\x00\x00\x00\x04\x08"),
+    "length" / Int32ul,
 
     "block" / Embedded(Block),
 
-    "peek" / Hex(Peek(Bytes(4))),
     "checksum" / Int32ul,
     "footer" / Footer,
 )
@@ -92,58 +91,21 @@ def unpack_samples(data):
         if phase == 1:
             comb = byte
         if phase == 2:
-            # aa _A       = 0Aaa < This one works.. when we skip 1st 2 bytes
-            # aa _A       = 0aaA
-            # aa A_       = 0Aaa
-            # aa A_       = 0aaA
-            # AB aa bb AB aa bb AB aa bb ... would also fit pattern <<<<
-            # BA aa bb BA aa bb BA aa bb ... would also fit pattern
-
-            #unpacked.append((byte << 8 & 0x0F00) + (prev << 0))
-            #unpacked.append((byte << 0 & 0x000F) + (prev << 4))
-            #unpacked.append((byte << 4 & 0x0F00) + (prev << 0))
-            #unpacked.append((byte >> 4 & 0x000F) + (prev << 4))
+            # AB aa bb AB aa bb AB aa bb
             unpacked.append((comb >> 4 & 0x000F) + (byte << 4))
-            #unpacked.append((comb >> 0 & 0x000F) + (byte << 4))
-            #unpacked.append(value)
         elif phase == 3:
-            # aa bA BB    = 0BBb <
-            # aa bA BB    = 0bBB
-            # aa Ab BB    = 0BBb
-            # aa Ab BB    = 0bBB
-            #unpacked.append((byte << 4) + (prev >> 4 & 0x000F))
-            #unpacked.append((byte << 0) + (prev << 4 & 0x0F00))
-            #unpacked.append((byte << 4) + (prev >> 0 & 0x000F))
-            #unpacked.append((byte << 0) + (prev << 8 & 0x0F00))
             unpacked.append((comb << 8 & 0x0F00) + (byte << 0))
-            #unpacked.append((comb << 4 & 0x0F00) + (byte << 0))
-            #unpacked.append(0)
             phase = 0
-
-        prev = int(byte)
+        prev = byte
 
     return unpacked
 
 def pack_samples(unpacked):
-    # pack 12bit data to bytestring
     packed = bytearray()
     phase = 0
-    '''
-    bnext = 0
-    for value in unpacked:
-        phase += 1
-        if phase == 1:
-            packed.append(value & 0x00FF)
-            bnext = (value >> 8 & 0x000F)
-        if phase == 2:
-            packed.append((value << 4 & 0x00F0) + bnext)
-            packed.append(value >> 4 & 0x00FF)
-            phase = 0
-
-    if phase == 1:
-        packed.append(bnext)
-    '''
     comb = 0
+
+    # pack 12bit data to bytestring
     for value in unpacked:
         phase += 1
         if phase == 1:
@@ -229,7 +191,7 @@ def main():
             print("Sample length", total)
             print("Bytes length", btotal)
 
-            print("param1", config['param1'])
+            print("length", config['length'])
             print("length1", config['length1'])
 
             # attempt to figure out what is checksum'ed
