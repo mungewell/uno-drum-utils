@@ -31,9 +31,6 @@ Data = Struct(
 )
 
 Block = Struct(
-    Const(b"\x01\x00\x00\x00\x00\x00\x04\x08"),
-
-    "length1" / Int32ul,
     Const(b"\x00\x00\x00\x00"),
     "length2" / Int32ul,
     Check(this.length1 == this.length2),
@@ -55,7 +52,7 @@ Header = Padded(0x115, Struct(
     Const(b"\x01\x01\x00\x00\x00"),
     Const(b"PCM Library"),
     Const(b"\x20\x00"),
-    #"name" / PaddedString(100, "ascii"),
+    "name" / PaddedString(100, "ascii"),
 ))
 
 Footer = Struct(
@@ -66,16 +63,19 @@ Footer = Struct(
     Const(b"UFD"),
     "LENGTH" / Const(b"\x10"),
 
-    "crc32" / Int32ul,              # Python CRC32 ^ 0xffffffff
+    #"crc32" / Int32ul,              # Python CRC32 ^ 0xffffffff
 )
 
 DFU = Struct(
     "header" / Header,
     "length" / Int32ul,
+    Const(b"\x01\x00\x00\x00\x00\x00\x04\x08"),
+
+    "length1" / Int32ul,
 
     "block" / Embedded(Block),
 
-    "checksum" / Int32ul,
+    "checksum" / Int32ul,           # CRC-32-BZIP2
     "footer" / Footer,
 )
 
@@ -131,9 +131,11 @@ def main():
     import os
     import wave
     from optparse import OptionParser
+    import crcmod
 
     from hexdump import hexdump
     import binascii
+    import zlib
 
     usage = "usage: %prog [options] FILENAME"
     parser = OptionParser(usage)
@@ -177,30 +179,19 @@ def main():
         config = DFU.parse(data)
 
         if options.summary:
-            print("total samples:", config["total"])
+            print("Number of samples:", config["total"])
 
             total = 0
             btotal = 0
             count = 1
             for sample in config["samples"]:
-                #print(count, sample["length"], sample["bytes"])
-                #print(hexdump(config['data'][count-1]['data'][:10]))
-                total += sample["length"]
-                btotal += sample["bytes"]
+                print("Sample %d: %s (%s bytes, %f sec)" % \
+                    (count, sample["length"], sample["bytes"], int(sample["length"])/32000))
+                total += int(sample["length"])
+                btotal += int(sample["bytes"])
                 count += 1
-            print("Sample length", total)
-            print("Bytes length", btotal)
-
-            print("length", config['length'])
-            print("length1", config['length1'])
-
-            # attempt to figure out what is checksum'ed
-            print("checksum", hex(int(config["checksum"])))
-            block = Block.build(config)
-            crc32 = binascii.crc32(block)
-            print("CRC32:", hex(crc32), len(block))
-            print("CRC32:", hex(crc32 ^ 0xffffffff), len(block))
-            print(hex(crc32 ^ int(config["checksum"])))
+            print("Total length: %d bytes" % btotal)
+            print("Total length: %f sec" % (total/32000))
 
         if options.unpack:
             path = os.path.join(os.getcwd(), options.unpack) 
@@ -276,10 +267,21 @@ def main():
             print(config)
 
         if options.outfile:
-            outfile = open(options.outfile, "wb")
+            # re-calc inner checksum
+            data = Block.build(config)
+            crc32 = crcmod.Crc(0x104c11db7, rev=False, initCrc=0, xorOut=0xFFFFFFFF)
+            crc32.update(data)
+            config['checksum'] = crc32.crcValue ^ 0xFFFFFFFF
 
+            # re-calc outer checksum
+            data = DFU.build(config)
+            crc32 = crcmod.Crc(0x104c11db7, rev=True, initCrc=0, xorOut=0xFFFFFFFF)
+            crc32.update(data)
+
+            outfile = open(options.outfile, "wb")
             if outfile:
-                outfile.write(DFU.build(config))
+                outfile.write(data)
+                outfile.write((crc32.crcValue ^ 0xFFFFFFFF).to_bytes(4, byteorder='little'))
                 outfile.close
 
 if __name__ == "__main__":
