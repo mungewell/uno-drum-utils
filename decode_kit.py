@@ -12,8 +12,18 @@ from construct import *
 # https://github.com/construct/construct
 
 PCM = Struct(
-    "type" / Enum(Byte,
-        PCM_1 = 0,
+    "sample" / Enum(Computed(lambda this: this._._.samples[len(this._) - 9]),
+        PCM_1 = 1,
+        PCM_2 = 2,
+        PCM_3 = 3,
+        PCM_4 = 4,
+        PCM_5 = 5,
+        ),
+)
+
+ANALOG = Struct(
+    "sample" / Enum(Computed(lambda this: this._._.samples[len(this._) - 9]),
+        ANALOG = 0,
         PCM_2 = 1,
         PCM_3 = 2,
         PCM_4 = 3,
@@ -21,18 +31,8 @@ PCM = Struct(
         ),
 )
 
-ANALOG = Struct(
-    "type" / Enum(Byte,
-        ANALOG = 0,
-        PCM_1 = 1,
-        PCM_2 = 2,
-        PCM_3 = 3,
-        PCM_4 = 4,
-        ),
-)
-
 DRUM = Struct(
-    #"type" / Embedded(PCM),
+    "sample" / Embedded(PCM),
     "level" / Byte,
     "tune" / Byte,
     "decay" / Byte,
@@ -40,7 +40,7 @@ DRUM = Struct(
 )
 
 KICK1 = Struct(
-    #"type" / Embedded(ANALOG),
+    "sample" / Embedded(ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -52,7 +52,7 @@ KICK1 = Struct(
 )
 
 KICK2 = Struct(
-    #"type" / Embedded(ANALOG),
+    "sample" / Embedded(ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -61,7 +61,7 @@ KICK2 = Struct(
 )
 
 SNARE = Struct(
-    #"type" / Embedded(ANALOG),
+    "sample" / Embedded(ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -71,28 +71,26 @@ SNARE = Struct(
 )
 
 HHAT = Struct(
-    #"type" / Embedded(ANALOG),
+    "sample" / Embedded(ANALOG),
     "level" / Byte,
-    "tune" / Enum(Byte,     # 1..4 only
-        _1 = 0,
-        _2 = 1,
-        _3 = 2,
-        _4 = 3,
-        ),
+    "tune" / IfThenElse(this.sample == "ANALOG",
+            Enum(Byte,      # analog only
+                _1 = 0,
+                _2 = 32,
+                _3 = 64,
+                _4 = 96,
+            ),
+            Byte,          # PCM
+         ),
     "decay" / Byte,
     Const(b"\x00"),
 )
 
 CLAP = Struct(
-    #"type" / Embedded(ANALOG),
+    "sample" / Embedded(ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "decay" / Byte,
-)
-
-FX = Struct(
-    "comp" / Byte,
-    "drive" / Byte,
 )
 
 DRUMS = Struct(
@@ -108,13 +106,18 @@ DRUMS = Struct(
     "closed_hh" / HHAT,
     "open_hh" / HHAT,
     "clap" / CLAP,
-    "fx" / FX,
+)
+
+FX = Struct(
+    "comp" / Byte,
+    "drive" / Byte,
 )
 
 UNODRP = Struct(
-    "elements" / Array(13, Byte),   # including "fx"
-    Const(b"\x00"),
+    "samples" / Array(12, Byte),
+    Const(b"\x00\x00"),
     "drums" / DRUMS,
+    "fx" / FX,
     Const(b"\x00\x00\x64\x5f"),
 )
 
