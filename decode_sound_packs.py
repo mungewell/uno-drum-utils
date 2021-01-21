@@ -52,7 +52,7 @@ Header = Padded(0x115, Struct(
     Const(b"\x01\x01\x00\x00\x00"),
     Const(b"PCM Library"),
     Const(b"\x20\x00"),
-    "name" / PaddedString(100, "ascii"),
+    #"name" / PaddedString(100, "ascii"),
 ))
 
 Footer = Struct(
@@ -168,6 +168,7 @@ def main():
     if len(args) != 1:
         parser.error("FILE not specified")
 
+    print("Opening:", args[0])
     infile = open(args[0], "rb")
     if not infile:
         sys.exit("Unable to open FILE for reading")

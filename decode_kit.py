@@ -32,21 +32,15 @@ ANALOG = Struct(
 )
 
 DRUM = Struct(
-    "type" / Embedded(PCM),
+    #"type" / Embedded(PCM),
     "level" / Byte,
     "tune" / Byte,
     "decay" / Byte,
-)
-
-ADRUM = Struct(
-    "type" / Embedded(ANALOG),
-    "level" / Byte,
-    "tune" / Byte,
-    "decay" / Byte,
+    Const(b"\x00"),
 )
 
 KICK1 = Struct(
-    "type" / Embedded(ANALOG),
+    #"type" / Embedded(ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -54,27 +48,30 @@ KICK1 = Struct(
     "fm_tune" / Byte,
     "fm_amt" / Byte,
     "sweep" / Byte,
+    Const(b"\x00"),
 )
 
 KICK2 = Struct(
-    "type" / Embedded(ANALOG),
+    #"type" / Embedded(ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
     "decay" / Byte,
+    Const(b"\x00"),
 )
 
 SNARE = Struct(
-    "type" / Embedded(ANALOG),
+    #"type" / Embedded(ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
     "decay" / Byte,
     "noise_lpf" / Byte,
+    Const(b"\x00"),
 )
 
 HHAT = Struct(
-    "type" / Embedded(ANALOG),
+    #"type" / Embedded(ANALOG),
     "level" / Byte,
     "tune" / Enum(Byte,     # 1..4 only
         _1 = 0,
@@ -82,6 +79,14 @@ HHAT = Struct(
         _3 = 2,
         _4 = 3,
         ),
+    "decay" / Byte,
+    Const(b"\x00"),
+)
+
+CLAP = Struct(
+    #"type" / Embedded(ANALOG),
+    "level" / Byte,
+    "tune" / Byte,
     "decay" / Byte,
 )
 
@@ -102,21 +107,21 @@ DRUMS = Struct(
     "snare" / SNARE,
     "closed_hh" / HHAT,
     "open_hh" / HHAT,
-    "clap" / DRUM,
+    "clap" / CLAP,
     "fx" / FX,
 )
 
 UNODRP = Struct(
-    Padding(13),            # not sure what these bytes do
-    "drums" / Embedded(DRUMS),
+    "elements" / Array(13, Byte),   # including "fx"
+    Const(b"\x00"),
+    "drums" / DRUMS,
     Const(b"\x00\x00\x64\x5f"),
 )
 
 MIDI = Struct(
     Const(b"\xf0\x00\x21\x1a\x02\x02\x00\x37\x00\x00"),
-    Padding(13),
-    "drums" / Embedded(DRUMS),
-    Const(b"\x00\x00\x64\x5f\xf7"),
+    "unodrp" / Embedded(UNODRP),
+    Const(b"\xf7"),
 )
 
 #--------------------------------------------------
@@ -129,7 +134,7 @@ def main():
         help="dump configuration to text",
         action="store_true", dest="dump")
     parser.add_option("-m", "--midi",
-        help="decode drums from midi dump (ie not '.unodrp' file)",
+        help="decode kit from midi dump (ie not '.unodrp' file)",
         action="store_true", dest="midi")
 
     (options, args) = parser.parse_args()
