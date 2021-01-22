@@ -5,34 +5,29 @@
 #
 
 from construct import *
+import enum
 
 #--------------------------------------------------
 # Define UNODRP file format using Construct (v2.9)
 # requires:
 # https://github.com/construct/construct
 
-PCM = Struct(
-    "sample" / Enum(Computed(lambda this: this._._.samples[len(this._) - 9]),
+class PCM(enum.IntEnum):
         PCM_1 = 1,
         PCM_2 = 2,
         PCM_3 = 3,
         PCM_4 = 4,
         PCM_5 = 5,
-        ),
-)
 
-ANALOG = Struct(
-    "sample" / Enum(Computed(lambda this: this._._.samples[len(this._) - 9]),
+class ANALOG(enum.IntEnum):
         ANALOG = 0,
         PCM_2 = 1,
         PCM_3 = 2,
         PCM_4 = 3,
         PCM_5 = 4,
-        ),
-)
 
 DRUM = Struct(
-    "sample" / Embedded(PCM),
+    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , PCM),
     "level" / Byte,
     "tune" / Byte,
     "decay" / Byte,
@@ -40,7 +35,7 @@ DRUM = Struct(
 )
 
 KICK1 = Struct(
-    "sample" / Embedded(ANALOG),
+    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -52,7 +47,7 @@ KICK1 = Struct(
 )
 
 KICK2 = Struct(
-    "sample" / Embedded(ANALOG),
+    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -61,7 +56,7 @@ KICK2 = Struct(
 )
 
 SNARE = Struct(
-    "sample" / Embedded(ANALOG),
+    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -71,7 +66,7 @@ SNARE = Struct(
 )
 
 HHAT = Struct(
-    "sample" / Embedded(ANALOG),
+    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , ANALOG),
     "level" / Byte,
     "tune" / IfThenElse(this.sample == "ANALOG",
             Enum(Byte,      # analog only
@@ -87,7 +82,7 @@ HHAT = Struct(
 )
 
 CLAP = Struct(
-    "sample" / Embedded(ANALOG),
+    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "decay" / Byte,
@@ -123,7 +118,11 @@ UNODRP = Struct(
 
 MIDI = Struct(
     Const(b"\xf0\x00\x21\x1a\x02\x02\x00\x37\x00\x00"),
-    "unodrp" / Embedded(UNODRP),
+    "samples" / Array(12, Byte),
+    Const(b"\x00\x00"),
+    "drums" / DRUMS,
+    "fx" / FX,
+    Const(b"\x00\x00\x64\x5f"),
     Const(b"\xf7"),
 )
 
