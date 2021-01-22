@@ -27,7 +27,8 @@ class ANALOG(enum.IntEnum):
         PCM_5 = 4,
 
 DRUM = Struct(
-    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , PCM),
+    "sample" / Enum(Computed(lambda this: \
+            this._._.samples[len(this._) - len(this)]) , PCM),
     "level" / Byte,
     "tune" / Byte,
     "decay" / Byte,
@@ -35,7 +36,8 @@ DRUM = Struct(
 )
 
 KICK1 = Struct(
-    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , ANALOG),
+    "sample" / Enum(Computed(lambda this: \
+            this._._.samples[len(this._) - len(this)]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -47,7 +49,8 @@ KICK1 = Struct(
 )
 
 KICK2 = Struct(
-    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , ANALOG),
+    "sample" / Enum(Computed(lambda this: \
+            this._._.samples[len(this._) - len(this)]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -56,7 +59,8 @@ KICK2 = Struct(
 )
 
 SNARE = Struct(
-    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , ANALOG),
+    "sample" / Enum(Computed(lambda this: \
+            this._._.samples[len(this._) - len(this)]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -66,23 +70,25 @@ SNARE = Struct(
 )
 
 HHAT = Struct(
-    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , ANALOG),
+    "sample" / Enum(Computed(lambda this: \
+            this._._.samples[len(this._) - len(this)]) , ANALOG),
     "level" / Byte,
     "tune" / IfThenElse(this.sample == "ANALOG",
-            Enum(Byte,      # analog only
+            Enum(Byte,      # analog sample
                 _1 = 0,
                 _2 = 32,
                 _3 = 64,
                 _4 = 96,
             ),
-            Byte,          # PCM
+            Byte,           # PCM sample
          ),
     "decay" / Byte,
     Const(b"\x00"),
 )
 
 CLAP = Struct(
-    "sample" / Enum( Computed(lambda this: this._._.samples[len(this._) - 9]) , ANALOG),
+    "sample" / Enum(Computed(lambda this: \
+            this._._.samples[len(this._) - len(this)]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "decay" / Byte,
