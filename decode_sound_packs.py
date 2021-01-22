@@ -33,13 +33,13 @@ Data = Struct(
 Block = Struct(
     Const(b"\x00\x00\x00\x00"),
     "length2" / Int32ul,
-    Check(this.length1 == this.length2),
+    #Check(this._.length1 == this.length2),
 
     "elements" / Array(12, Byte),
     "total" / Computed(lambda this: sum(this.elements)),
     "samples" / Array(this.total, Sample),
 
-    "data" / Padded(lambda this: this.length1 - 456,    # seems that there may be padding
+    "data" / Padded(lambda this: this.length2 - 456,    # seems that there may be padding
         Array(this.total, Data),                        # maybe needs to be multiple of 4...
     ),
 )
@@ -73,7 +73,7 @@ DFU = Struct(
 
     "length1" / Int32ul,
 
-    "block" / Embedded(Block),
+    "block" / Block,
 
     "checksum" / Int32ul,           # CRC-32-BZIP2
     "footer" / Footer,
@@ -180,16 +180,16 @@ def main():
         config = DFU.parse(data)
 
         if options.summary:
-            print("Number of samples:", config["total"])
+            print("Number of samples:", config['block']['total'])
 
             total = 0
             btotal = 0
             count = 1
-            for sample in config["samples"]:
+            for sample in config['block']['samples']:
                 print("Sample %d: %s (%s bytes, %f sec)" % \
-                    (count, sample["length"], sample["bytes"], int(sample["length"])/32000))
-                total += int(sample["length"])
-                btotal += int(sample["bytes"])
+                    (count, sample['length'], sample['bytes'], int(sample['length'])/32000))
+                total += int(sample['length'])
+                btotal += int(sample['bytes'])
                 count += 1
             print("Total length: %d bytes" % btotal)
             print("Total length: %f sec" % (total/32000))
@@ -202,7 +202,7 @@ def main():
             os.mkdir(path)
 
             count = 1
-            for data in config["data"]:
+            for data in config['block']['data']:
                 unpacked = unpack_samples(data.data)
 
                 if options.raw:
@@ -230,14 +230,14 @@ def main():
                 sys.exit("Directory %s does not exist" % path)
 
             count = 1
-            for sample in config["samples"]:
+            for sample in config['block']['samples']:
                 unpacked = []
                 if options.raw:
                     name = os.path.join(path, "sample-{0:0=2d}.raw".format(count))
                     if os.path.isfile(name):
                         infile = open(name, "rb")
                         if infile:
-                            for temp in range(sample["length"]):
+                            for temp in range(sample['length']):
                                 value = infile.read(2)
                                 unpacked.append(int.from_bytes(value, byteorder='little'))
                             infile.close()
@@ -255,13 +255,13 @@ def main():
                             if infile.getframerate() != 32000:
                                 sys.exit("Samples should be 3200KHz: %s" % name)
 
-                            for temp in range(sample["length"]):
+                            for temp in range(sample['length']):
                                 value = infile.readframes(1)
                                 unpacked.append(int.from_bytes(value, byteorder='big'))
                             infile.close()
 
                 if len(unpacked):
-                    config['data'][count-1].data = bytes(pack_samples(unpacked))
+                    config['block']['data'][count-1].data = bytes(pack_samples(unpacked))
                 count += 1
 
         if options.dump:
@@ -269,7 +269,7 @@ def main():
 
         if options.outfile:
             # re-calc inner checksum
-            data = Block.build(config)
+            data = Block.build(config['block'])
             crc32 = crcmod.Crc(0x104c11db7, rev=False, initCrc=0, xorOut=0xFFFFFFFF)
             crc32.update(data)
             config['checksum'] = crc32.crcValue ^ 0xFFFFFFFF
