@@ -184,13 +184,18 @@ def main():
 
             total = 0
             btotal = 0
-            count = 1
+            a_count = 1
+            b_count = 1
             for sample in config['block']['samples']:
-                print("Sample %d: %s (%s bytes, %f sec)" % \
-                    (count, sample['length'], sample['bytes'], int(sample['length'])/32000))
+                print("Sample %d-%d: %s (%s bytes, %f sec)" % \
+                    (a_count, b_count, sample['length'], sample['bytes'], int(sample['length'])/32000))
                 total += int(sample['length'])
                 btotal += int(sample['bytes'])
-                count += 1
+                if b_count == config['block']['elements'][a_count-1]:
+                    a_count += 1
+                    b_count = 1
+                else:
+                    b_count += 1
             print("Total length: %d bytes" % btotal)
             print("Total length: %f sec" % (total/32000))
 
@@ -201,18 +206,19 @@ def main():
 
             os.mkdir(path)
 
-            count = 1
+            a_count = 1
+            b_count = 1
             for data in config['block']['data']:
                 unpacked = unpack_samples(data.data)
 
                 if options.raw:
-                    name = os.path.join(path, "sample-{0:0=2d}.raw".format(count))
+                    name = os.path.join(path, "sample-{0:0=2d}-{1:0=1d}.raw".format(a_count, b_count))
                     outfile = open(name, "wb")
                     for value in unpacked:
                         outfile.write(value.to_bytes(2, byteorder='little'))
                     outfile.close()
                 else:
-                    name = os.path.join(path, "sample-{0:0=2d}.wav".format(count))
+                    name = os.path.join(path, "sample-{0:0=2d}-{1:0=1d}.wav".format(a_count, b_count))
                     outfile = wave.open(name, "wb")
                     outfile.setsampwidth(2)
                     outfile.setnchannels(1)
@@ -222,7 +228,11 @@ def main():
                         outfile.writeframesraw(value.to_bytes(2, byteorder='big'))
                     outfile.close()
 
-                count += 1
+                if b_count == config['block']['elements'][a_count-1]:
+                    a_count += 1
+                    b_count = 1
+                else:
+                    b_count += 1
 
         if options.replace:
             path = os.path.join(os.getcwd(), options.replace)
@@ -230,10 +240,12 @@ def main():
                 sys.exit("Directory %s does not exist" % path)
 
             count = 1
+            a_count = 1
+            b_count = 1
             for sample in config['block']['samples']:
                 unpacked = []
                 if options.raw:
-                    name = os.path.join(path, "sample-{0:0=2d}.raw".format(count))
+                    name = os.path.join(path, "sample-{0:0=2d}-{1:0=1d}.raw".format(a_count, b_count))
                     if os.path.isfile(name):
                         infile = open(name, "rb")
                         if infile:
@@ -243,7 +255,7 @@ def main():
                             infile.close()
 
                 else:
-                    name = os.path.join(path, "sample-{0:0=2d}.wav".format(count))
+                    name = os.path.join(path, "sample-{0:0=2d}-{1:0=1d}.wav".format(a_count, b_count))
                     if os.path.isfile(name):
                         infile = wave.open(name, "rb")
                         if infile:
@@ -262,7 +274,13 @@ def main():
 
                 if len(unpacked):
                     config['block']['data'][count-1].data = bytes(pack_samples(unpacked))
+
                 count += 1
+                if b_count == config['block']['elements'][a_count-1]:
+                    a_count += 1
+                    b_count = 1
+                else:
+                    b_count += 1
 
         if options.dump:
             print(config)
