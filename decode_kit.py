@@ -28,7 +28,7 @@ class ANALOG(enum.IntEnum):
 
 DRUM = Struct(
     "sample" / Enum(Computed(lambda this: \
-            this._._.samples[len(this._) - len(this)]) , PCM),
+            this._._.samples[this._.parsingindex]) , PCM),
     "level" / Byte,
     "tune" / Byte,
     "decay" / Byte,
@@ -37,7 +37,7 @@ DRUM = Struct(
 
 KICK1 = Struct(
     "sample" / Enum(Computed(lambda this: \
-            this._._.samples[len(this._) - len(this)]) , ANALOG),
+            this._._.samples[this._.parsingindex]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -50,7 +50,7 @@ KICK1 = Struct(
 
 KICK2 = Struct(
     "sample" / Enum(Computed(lambda this: \
-            this._._.samples[len(this._) - len(this)]) , ANALOG),
+            this._._.samples[this._.parsingindex]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -60,7 +60,7 @@ KICK2 = Struct(
 
 SNARE = Struct(
     "sample" / Enum(Computed(lambda this: \
-            this._._.samples[len(this._) - len(this)]) , ANALOG),
+            this._._.samples[this._.parsingindex]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "snap" / Byte,
@@ -71,7 +71,7 @@ SNARE = Struct(
 
 HHAT = Struct(
     "sample" / Enum(Computed(lambda this: \
-            this._._.samples[len(this._) - len(this)]) , ANALOG),
+            this._._.samples[this._.parsingindex]) , ANALOG),
     "level" / Byte,
     "tune" / IfThenElse(this.sample == "ANALOG",
             Enum(Byte,      # analog sample
@@ -88,7 +88,7 @@ HHAT = Struct(
 
 CLAP = Struct(
     "sample" / Enum(Computed(lambda this: \
-            this._._.samples[len(this._) - len(this)]) , ANALOG),
+            this._._.samples[this._.parsingindex]) , ANALOG),
     "level" / Byte,
     "tune" / Byte,
     "decay" / Byte,
