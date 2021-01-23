@@ -115,21 +115,19 @@ FX = Struct(
 )
 
 UNODRP = Struct(
-    "samples" / Array(12, Byte),
-    Const(b"\x00\x00"),
-    "drums" / DRUMS,
-    "fx" / FX,
-    Const(b"\x00\x00\x64\x5f"),
-)
+    If(this._params.midi,
+        Const(b"\xf0\x00\x21\x1a\x02\x02\x00\x37\x00\x00"),
+    ),
 
-MIDI = Struct(
-    Const(b"\xf0\x00\x21\x1a\x02\x02\x00\x37\x00\x00"),
     "samples" / Array(12, Byte),
     Const(b"\x00\x00"),
     "drums" / DRUMS,
     "fx" / FX,
     Const(b"\x00\x00\x64\x5f"),
-    Const(b"\xf7"),
+
+    If(this._params.midi,
+        Const(b"\xf7"),
+    ),
 )
 
 #--------------------------------------------------
@@ -158,10 +156,7 @@ def main():
     infile.close()
 
     if options.dump and data:
-        if options.midi:
-            config = MIDI.parse(data)
-        else:
-            config = UNODRP.parse(data)
+        config = UNODRP.parse(data, midi=options.midi)
         print(config)
 
 
