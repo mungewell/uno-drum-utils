@@ -143,6 +143,11 @@ def main():
         help="decode kit from midi dump (ie not '.unodrp' file)",
         action="store_true", dest="midi")
 
+    parser.add_option("-o", "--output", dest="outfile",
+        help="write data to OUTFILE")
+    parser.add_option("-O", "--outmidi", dest="outmidi",
+        help="write data to OUTFILE in MIDI format")
+
     (options, args) = parser.parse_args()
     
     if len(args) != 1:
@@ -155,10 +160,22 @@ def main():
         data = infile.read()
     infile.close()
 
-    if options.dump and data:
+    if data:
         config = UNODRP.parse(data, midi=options.midi)
-        print(config)
 
+        if options.dump:
+            print(config)
+
+        if (options.outfile or options.outmidi):
+            if options.outmidi:
+                outfile = open(options.outmidi, "wb")
+            else:
+                outfile = open(options.outfile, "wb")
+
+            data = UNODRP.build(config, midi=options.outmidi)
+            if outfile:
+                outfile.write(data)
+                outfile.close
 
 if __name__ == "__main__":
     main()
