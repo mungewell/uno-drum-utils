@@ -7,6 +7,15 @@ the presets into two parts - Kits ('.unodrp' files) and Patterns ('.unodrpt' fil
 The device supports 100 Kits and 100 Patterns. There is also a Song mode, where a 
 number of patterns can be chained together to form a longer composition.
 
+Recently we had a breakthough, and now understand how the 'sound packs' the IK provided
+in the 'Anthology' series are encoded. The include '.dfu' files which patch part of
+the UNO Drum's firmware. The '.dfu' contains 32KHz mono samples for each sound and tables
+of how they are allocated within the device.
+
+I imagine that this will become the prime "reason-d'etra" for this project, it is
+totally in the realms of possibilty that it could provide a GUI interface to make it
+easy for users to add their own samples. I'll jusy say "coming soon"....
+
 For programming UNO Synth, see the sister project:
 https://github.com/mungewell/uno-synth-utils
 
@@ -77,9 +86,7 @@ $ amidi -p hw:1,0,0 -S 'f0 00 21 1a 02 02 28 01 63 01 55 4e 4f 2d 55 74 69 6c 73
 ## Kits
 
 The UNO-Drum can store 100 Kits, these can be editted by the offical
-app, which can also save/lod kits to the '.unodrp' files. The '.unodrp' 
-files appear to use the same format as the SysEx, but with different
-offset.
+app, which can also save/load kits to the '.unodrp' files.
 
 Kits are basically a sequential list of drums and their parameters.
 ```
@@ -95,6 +102,22 @@ Kits are basically a sequential list of drums and their parameters.
     Closed HH 	(Type, Level, Tune, Decay)
     Open HH 	(Type, Level, Tune, Decay)
     Clap 	(Type, Level, Tune, Decay)
+```
+
+'.undrp' (and Midi files) can be dumped to text with the 'decode_kit.py'
+script. This also allows for transcoding between formats.
+```
+$ python3 decode_kit.py -h
+Usage: decode_kit.py [options] FILENAME
+
+Options:
+  -h, --help            show this help message and exit
+  -d, --dump            dump configuration to text
+  -m, --midi            decode kit from midi dump (ie not '.unodrp' file)
+  -o OUTFILE, --output=OUTFILE
+                        write data to OUTFILE
+  -O OUTMIDI, --outmidi=OUTMIDI
+                        write data to OUTFILE in MIDI format
 ```
 
 CMD 0x37+0x00+0x00: Read current Kit
