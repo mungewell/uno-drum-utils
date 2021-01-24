@@ -18,7 +18,8 @@ expected_params = [0, 4, 4, 4, 4, 4, 4, 8, 4, 5, 4, 4, 4]
 
 BLOB = Struct(
     "length" / Byte,
-    "blob" / Bytes(this.length),
+    "blob" / Bytes(this.length - 1),
+    Const(b"\x00"),
 )
 
 UNODRPT = Struct(
@@ -157,9 +158,8 @@ def main():
     parser.add_option("-m", "--midi", dest="midi",
         help="import data from midi dump")
 
-    parser.add_option("-s", "--summary",
-        help="summarize LINE in human readable form",
-        action="store_true", dest="summary")
+    parser.add_option("-s", "--summary", dest="summary",
+        help="summarize LINE in human readable form")
     parser.add_option("-t", "--text",
         help="summarize whole config as text art",
         action="store_true", dest="text")
@@ -189,7 +189,7 @@ def main():
         for line in range(1, 13):
             start = 1 + config['line'+str(line)]['blob'].index(0x2e)
             # note last '\x00' is not encoded
-            decoded[line] = decode_block(config['line'+str(line)]['blob'][start:-1])
+            decoded[line] = decode_block(config['line'+str(line)]['blob'][start:])
             if len(decoded[line]):
                 parsed[line] = DECODED.parse(decoded[line], line = line, \
                         expected = expected_params[line])
@@ -208,6 +208,32 @@ def main():
         if options.dump:
             print(config)
 
+        if options.summary and data:
+            line = int(options.summary)
+            print("Summary of Line %d:" % line)
+            if parsed[line]:
+                for param in range(expected_params[line]):
+                    if parsed[line]['decoded'][param]['laststep']:
+                        step = 0
+                        count = 0
+                        bits = parsed[line]['decoded'][param]['params']['bits']
+                        for value in range(parsed[line]['decoded'][param]['params']['params']):
+                            # find location of next set bit
+                            while bits & 0x0001 == 0:
+                                step += 1
+                                count += 1
+                                bits = bits >> 1
+                                # skip MSBs
+                                if count % 7 == 0:
+                                    bits = bits >> 1
+
+                                if bits == 0:
+                                    break
+
+                            print("Param %d: Step %d sets value %d" % (param, step, \
+                                    parsed[line]['decoded'][param]['params']['param'][value]))
+                            bits = bits & 0xffffe
+
         if options.text and data:
             graphic = "..,,ooxxOOXX$$##"
 
@@ -220,7 +246,7 @@ def main():
                     step = 0
                     count = 0
                     bits = parsed[line]['decoded'][0]['params']['bits']
-                    for param in range(parsed[line]['decoded'][0]['params']['params']):
+                    for value in range(parsed[line]['decoded'][0]['params']['params']):
                         # find location of next set bit
                         while bits & 0x0001 == 0:
                             step += 1
@@ -233,7 +259,7 @@ def main():
                             if bits == 0:
                                 break
 
-                        out[step] = graphic[parsed[line]['decoded'][0]['params']['param'][param] >> 3]
+                        out[step] = graphic[parsed[line]['decoded'][0]['params']['param'][value] >> 3]
                         bits = bits & 0xffffe
 
                 print("%2.2d %10.10s :%s" % (line, element_names[line], "".join(out)))
