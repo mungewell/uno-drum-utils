@@ -60,7 +60,7 @@ DECODED2 = Struct(
 )
 
 DECODED1 = Struct(
-    "laststep" / Byte,
+    "laststep" / Default(Byte, 0),
     "params" / If(this.laststep > 0, DECODED2),
 )
 
@@ -72,6 +72,7 @@ DECODED = Struct(
 MIDI = Struct(
     Const(b"\xf0\x00\x21\x1a\x02\x02\x00\x37\x03"),
     "line" / Byte,
+    Check(this.line == this._params.line),
     Const(b"\x39\x0e"),
     "decoded" / Array(this._params.expected, DECODED1),
     Const(b"\xf7"),
@@ -194,14 +195,15 @@ def main():
                         expected = expected_params[line])
 
         if options.midi and options.line:
+            print("Merging: '%s' (to Line %s)" % (options.midi, options.line))
             infile = open(options.midi, "rb")
             if infile:
                 midi_data = infile.read()
                 infile.close()
 
-                parsed[line] = MIDI.parse(midi_data, \
-                        expected = expected_params[int(options.line)])
-                print(parsed[line])
+                line = int(options.line)
+                parsed[line] = MIDI.parse(midi_data, line = line,\
+                        expected = expected_params[line])
 
         if options.dump:
             print(config)
@@ -237,11 +239,40 @@ def main():
                 print("%2.2d %10.10s :%s" % (line, element_names[line], "".join(out)))
 
         if options.outfile or (options.outmidi and options.line):
-            if 0: #options.outmidi:
+            if options.outmidi:
+                line = int(options.line)
+                if parsed[line]:
+                    data = MIDI.build(parsed[line], line=line, \
+                            expected=expected_params[line])
+                else:
+                    empty = DECODED.parse(b"\x00" * 8, line=line, \
+                            expected=expected_params[line])
+                    data = MIDI.build(empty, line=line, \
+                            expected=expected_params[line])
                 outfile = open(options.outmidi, "wb")
             else:
-                outfile = open(options.outfile, "wb")
+                # re-assemble everything to IK's wacky scheme
+                for line in range(1, 13):
+                    start = 1 + config['line'+str(line)]['blob'].index(0x2e)
+                    print(line, hexdump(config['line'+str(line)]['blob']))
+                    config['line'+str(line)]['blob'] = config['line'+str(line)]['blob'][:start]
+
+                    if parsed[line]:
+                        decoded[line] = DECODED.build(parsed[line], line=line, \
+                                expected=expected_params[line])
+                    else:
+                        empty = DECODED.parse(b"\x00", line=line, \
+                                expected=1)
+                        decoded[line] = DECODED.build(empty, line=line, \
+                                expected=1)
+                        print(hexdump(decoded[line]))
+
+                    encoded = encode_block(bytearray(decoded[line]))
+                    config['line'+str(line)]['blob'] += encoded + b"\x00"
+                    print(line, hexdump(config['line'+str(line)]['blob']))
+
                 data = UNODRPT.build(config)
+                outfile = open(options.outfile, "wb")
 
             if outfile:
                 outfile.write(data)
