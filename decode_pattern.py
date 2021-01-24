@@ -111,11 +111,21 @@ def main():
         help="dump configuration to text",
         action="store_true", dest="dump")
     parser.add_option("-l", "--line",
-        help="dump line X as hex", dest="line")
-    parser.add_option("-s", "--summary",
-        help="summarize config in human readable form",
-        action="store_true", dest="summary")
+        help="select specific LINE", dest="line")
+    parser.add_option("-m", "--midi", dest="midi",
+        help="import data from midi dump")
 
+    parser.add_option("-s", "--summary",
+        help="summarize LINE in human readable form",
+        action="store_true", dest="summary")
+    parser.add_option("-t", "--text",
+        help="summarize whole config as text art",
+        action="store_true", dest="text")
+
+    parser.add_option("-o", "--output", dest="outfile",
+        help="write data to OUTFILE")
+    parser.add_option("-O", "--outmidi", dest="outmidi",
+        help="write LINE of data to OUTFILE in MIDI format")
     (options, args) = parser.parse_args()
     
     if len(args) != 1:
@@ -129,54 +139,60 @@ def main():
         data = infile.read()
     infile.close()
 
-    if options.dump and data:
-        config = UNODRPT.parse(data)
-        print(config)
-
-    if options.line and data:
-        config = UNODRPT.parse(data)
-        print(hexdump(config['line'+str(options.line)]['blob']))
-
-    if options.summary and data:
+    if data:
         config = UNODRPT.parse(data)
 
-        inst = ["", "tom1", "tom2", "rim", "cowbell", "ride", "cymbal", \
-                "kick1", "kick2", "snare", "closed_hh", "open_hh", "clap"]
-        graphic = "..,,ooxxOOXX$$##"
-        for line in range(1, 13):
-            start = 1 + config['line'+str(line)]['blob'].index(0x2e)
-            decoded = decode_block(config['line'+str(line)]['blob'][start:])
-            if len(decoded) == 0:
-                continue
-            length = decoded[0]
-            out = [" "] * length
+        if options.dump:
+            print(config)
 
-            offset = 0
-            pcount = 0
-            while offset < len(decoded):
-                if decoded[offset] == 0:
-                    offset += 1
-                    pcount += 1
+        if options.text and data:
+            inst = ["", "tom1", "tom2", "rim", "cowbell", "ride", "cymbal", \
+                    "kick1", "kick2", "snare", "closed_hh", "open_hh", "clap"]
+            graphic = "..,,ooxxOOXX$$##"
+            for line in range(1, 13):
+                start = 1 + config['line'+str(line)]['blob'].index(0x2e)
+                decoded = decode_block(config['line'+str(line)]['blob'][start:])
+                if len(decoded) == 0:
                     continue
+                length = decoded[0]
+                out = [" "] * length
 
-                length = int(decoded[0]/7)+1
-                count = 0
-                loc = []
-                for loop in range(length):
-                    for bit in range(7):
-                        if (decoded[offset+loop+1] >> bit & 1) == 1:
-                            count += 1
-                            loc.append(loop*7 + bit)
+                offset = 0
+                pcount = 0
+                while offset < len(decoded):
+                    if decoded[offset] == 0:
+                        offset += 1
+                        pcount += 1
+                        continue
 
-                if pcount == 0:
-                    for loop in range(count):
-                        out[loc[loop]] = graphic[decoded[offset + (2*length) + 1 + loop] >> 3]
+                    length = int(decoded[0]/7)+1
+                    count = 0
+                    loc = []
+                    for loop in range(length):
+                        for bit in range(7):
+                            if (decoded[offset+loop+1] >> bit & 1) == 1:
+                                count += 1
+                                loc.append(loop*7 + bit)
 
-                offset += 2*length + count + 1
-                pcount += 1
+                    if pcount == 0:
+                        for loop in range(count):
+                            out[loc[loop]] = graphic[decoded[offset + (2*length) + 1 + loop] >> 3]
 
-            print("%10.10s :%s" % (inst[line], "".join(out)))
+                    offset += 2*length + count + 1
+                    pcount += 1
 
+                print("%2.2d %10.10s :%s" % (line, inst[line], "".join(out)))
+
+        if options.outfile or (options.outmidi and options.line):
+            if 0: #options.outmidi:
+                outfile = open(options.outmidi, "wb")
+            else:
+                outfile = open(options.outfile, "wb")
+
+            data = UNODRPT.build(config)
+            if outfile:
+                outfile.write(data)
+                outfile.close
 
 if __name__ == "__main__":
     main()
