@@ -12,6 +12,10 @@ from hexdump import *
 # requires:
 # https://github.com/construct/construct
 
+element_names = ["", "tom1", "tom2", "rim", "cowbell", "ride", "cymbal", \
+        "kick1", "kick2", "snare", "closed_hh", "open_hh", "clap"]
+expected_params = [0, 4, 4, 4, 4, 4, 4, 8, 4, 5, 4, 4, 4]
+
 BLOB = Struct(
     "length" / Byte,
     "blob" / Bytes(this.length),
@@ -34,6 +38,38 @@ UNODRPT = Struct(
     Const(b"\x31\x31\x00\x01"), "line11" / BLOB,
     Const(b"\x31\x32\x00\x01"), "line12" / BLOB,
     Const(b"\x00"),
+)
+
+DECODED2 = Struct(
+    "width" / Computed(lambda this: int(this._.laststep/7)+1),
+    "bits" / Switch(this.width, {
+        1:Int8ub,
+        2:Int16ub,
+        3:Int24ub,
+        4:Int32ub,      # should extend to 64bits
+    }),
+    "zero" / Switch(this.width, {
+        1:Int8ub,
+        2:Int16ub,
+        3:Int24ub,
+        4:Int32ub,
+    }),
+    Check(this.zero == 0),
+    "params" / Computed(lambda this: bin(this.bits).count("1")),
+    "param" / Array(this.params, Byte),
+)
+
+DECODED = Struct(
+    "laststep" / Byte,
+    "params" / If(this.laststep > 0, DECODED2),
+)
+
+MIDI = Struct(
+    Const(b"\xf0\x00\x21\x1a\x02\x02\x00\x37\x03"),
+    "line" / Byte,
+    Const(b"\x39\x0e"),
+    "decoded" / Array(this._params.expected, DECODED),
+    Const(b"\xf7"),
 )
 
 def encode_byte(byte):
@@ -142,46 +178,58 @@ def main():
     if data:
         config = UNODRPT.parse(data)
 
+        decoded = [b""]*13
+        for line in range(1, 13):
+            start = 1 + config['line'+str(line)]['blob'].index(0x2e)
+            decoded[line] = decode_block(config['line'+str(line)]['blob'][start:])
+
+        if options.midi and options.line:
+            infile = open(options.midi, "rb")
+            if infile:
+                midi_data = infile.read()
+                infile.close()
+
+                midi = MIDI.parse(midi_data, \
+                        expected=expected_params[int(options.line)])
+                print(midi)
+
         if options.dump:
             print(config)
 
         if options.text and data:
-            inst = ["", "tom1", "tom2", "rim", "cowbell", "ride", "cymbal", \
-                    "kick1", "kick2", "snare", "closed_hh", "open_hh", "clap"]
             graphic = "..,,ooxxOOXX$$##"
+
             for line in range(1, 13):
-                start = 1 + config['line'+str(line)]['blob'].index(0x2e)
-                decoded = decode_block(config['line'+str(line)]['blob'][start:])
-                if len(decoded) == 0:
+                if len(decoded[line]) == 0:
                     continue
-                length = decoded[0]
+                length = decoded[line][0]
                 out = [" "] * length
 
                 offset = 0
                 pcount = 0
-                while offset < len(decoded):
-                    if decoded[offset] == 0:
+                while offset < len(decoded[line]):
+                    if decoded[line][offset] == 0:
                         offset += 1
                         pcount += 1
                         continue
 
-                    length = int(decoded[0]/7)+1
+                    length = int(decoded[line][0]/7)+1
                     count = 0
                     loc = []
                     for loop in range(length):
                         for bit in range(7):
-                            if (decoded[offset+loop+1] >> bit & 1) == 1:
+                            if (decoded[line][offset+loop+1] >> bit & 1) == 1:
                                 count += 1
                                 loc.append(loop*7 + bit)
 
                     if pcount == 0:
                         for loop in range(count):
-                            out[loc[loop]] = graphic[decoded[offset + (2*length) + 1 + loop] >> 3]
+                            out[loc[loop]] = graphic[decoded[line][offset + (2*length) + 1 + loop] >> 3]
 
                     offset += 2*length + count + 1
                     pcount += 1
 
-                print("%2.2d %10.10s :%s" % (line, inst[line], "".join(out)))
+                print("%2.2d %10.10s :%s" % (line, element_names[line], "".join(out)))
 
         if options.outfile or (options.outmidi and options.line):
             if 0: #options.outmidi:
