@@ -46,7 +46,7 @@ DECODED2 = Struct(
         1:Int8ul,
         2:Int16ul,
         3:Int24ul,
-        4:Int32ul,
+        4:Int32ul,                      # need to extend to 10 bytes (64 steps)
     }),
     "zero" / Switch(this.width, {
         1:Int8ul,
@@ -59,16 +59,21 @@ DECODED2 = Struct(
     "param" / Array(this.params, Byte),
 )
 
-DECODED = Struct(
+DECODED1 = Struct(
     "laststep" / Byte,
     "params" / If(this.laststep > 0, DECODED2),
+)
+
+DECODED = Struct(
+    "line" / Computed(this._params.line),
+    "decoded" / Array(this._params.expected, DECODED1),
 )
 
 MIDI = Struct(
     Const(b"\xf0\x00\x21\x1a\x02\x02\x00\x37\x03"),
     "line" / Byte,
     Const(b"\x39\x0e"),
-    "decoded" / Array(this._params.expected, DECODED),
+    "decoded" / Array(this._params.expected, DECODED1),
     Const(b"\xf7"),
 )
 
@@ -179,9 +184,14 @@ def main():
         config = UNODRPT.parse(data)
 
         decoded = [b""]*13
+        parsed  = [b""]*13
         for line in range(1, 13):
             start = 1 + config['line'+str(line)]['blob'].index(0x2e)
-            decoded[line] = decode_block(config['line'+str(line)]['blob'][start:])
+            # note last '\x00' is not encoded
+            decoded[line] = decode_block(config['line'+str(line)]['blob'][start:-1])
+            if len(decoded[line]):
+                parsed[line] = DECODED.parse(decoded[line], line = line, \
+                        expected = expected_params[line])
 
         if options.midi and options.line:
             infile = open(options.midi, "rb")
@@ -189,9 +199,9 @@ def main():
                 midi_data = infile.read()
                 infile.close()
 
-                midi = MIDI.parse(midi_data, \
-                        expected=expected_params[int(options.line)])
-                print(midi)
+                parsed[line] = MIDI.parse(midi_data, \
+                        expected = expected_params[int(options.line)])
+                print(parsed[line])
 
         if options.dump:
             print(config)
@@ -200,17 +210,15 @@ def main():
             graphic = "..,,ooxxOOXX$$##"
 
             for line in range(1, 13):
-                if len(decoded[line]) == 0:
+                if not parsed[line]:
                     continue
-                text = DECODED.parse(decoded[line], \
-                        expected=expected_params[line])
-                out = [" "] * text['laststep']
+                out = [" "] * parsed[line]['decoded'][0]['laststep']
 
-                if text['laststep']:
+                if parsed[line]['decoded'][0]['laststep']:
                     step = 0
                     count = 0
-                    bits = text['params']['bits']
-                    for param in range(text['params']['params']):
+                    bits = parsed[line]['decoded'][0]['params']['bits']
+                    for param in range(parsed[line]['decoded'][0]['params']['params']):
                         # find location of next set bit
                         while bits & 0x0001 == 0:
                             step += 1
@@ -223,7 +231,7 @@ def main():
                             if bits == 0:
                                 break
 
-                        out[step] = graphic[text['params']['param'][param] >> 3]
+                        out[step] = graphic[parsed[line]['decoded'][0]['params']['param'][param] >> 3]
                         bits = bits & 0xffffe
 
                 print("%2.2d %10.10s :%s" % (line, element_names[line], "".join(out)))
