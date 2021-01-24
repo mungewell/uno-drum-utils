@@ -14,7 +14,19 @@ from hexdump import *
 
 element_names = ["", "tom1", "tom2", "rim", "cowbell", "ride", "cymbal", \
         "kick1", "kick2", "snare", "closed_hh", "open_hh", "clap"]
-expected_params = [0, 4, 4, 4, 4, 4, 4, 8, 4, 5, 4, 4, 4]
+expected_params = [ [],
+        ["vel", "level", "tune", "decay"],
+        ["vel", "level", "tune", "decay"],
+        ["vel", "level", "tune", "decay"],
+        ["vel", "level", "tune", "decay"],
+        ["vel", "level", "tune", "decay"],
+        ["vel", "level", "tune", "decay"],
+        ["vel", "level", "tune", "decay", "snap", "FM tune FM amt", "sweep"],
+        ["vel", "level", "tune", "decay", "snap"],
+        ["vel", "level", "tune", "decay", "snap", "Noise LPF"],
+        ["vel", "level", "tune", "decay"],
+        ["vel", "level", "tune", "decay"],
+        ["vel", "level", "tune", "decay"]]
 
 BLOB = Struct(
     "length" / Byte,
@@ -188,11 +200,10 @@ def main():
         parsed  = [b""]*13
         for line in range(1, 13):
             start = 1 + config['line'+str(line)]['blob'].index(0x2e)
-            # note last '\x00' is not encoded
             decoded[line] = decode_block(config['line'+str(line)]['blob'][start:])
             if len(decoded[line]):
                 parsed[line] = DECODED.parse(decoded[line], line = line, \
-                        expected = expected_params[line])
+                        expected = len(expected_params[line]))
 
         if options.midi and options.line:
             print("Merging: '%s' (to Line %s)" % (options.midi, options.line))
@@ -203,7 +214,7 @@ def main():
 
                 line = int(options.line)
                 parsed[line] = MIDI.parse(midi_data, line = line,\
-                        expected = expected_params[line])
+                        expected = len(expected_params[line]))
 
         if options.dump:
             print(config)
@@ -212,7 +223,7 @@ def main():
             line = int(options.summary)
             print("Summary of Line %d:" % line)
             if parsed[line]:
-                for param in range(expected_params[line]):
+                for param in range(len(expected_params[line])):
                     if parsed[line]['decoded'][param]['laststep']:
                         step = 0
                         count = 0
@@ -230,7 +241,8 @@ def main():
                                 if bits == 0:
                                     break
 
-                            print("Param %d: Step %d sets value %d" % (param, step, \
+                            print("Param '%s': Step %d sets value %d" % ( \
+                                    expected_params[line][param], step, \
                                     parsed[line]['decoded'][param]['params']['param'][value]))
                             bits = bits & 0xffffe
 
@@ -269,12 +281,12 @@ def main():
                 line = int(options.line)
                 if parsed[line]:
                     data = MIDI.build(parsed[line], line=line, \
-                            expected=expected_params[line])
+                            expected=len(expected_params[line]))
                 else:
                     empty = DECODED.parse(b"\x00" * 8, line=line, \
-                            expected=expected_params[line])
+                            expected=len(expected_params[line]))
                     data = MIDI.build(empty, line=line, \
-                            expected=expected_params[line])
+                            expected=len(expected_params[line]))
                 outfile = open(options.outmidi, "wb")
             else:
                 # re-assemble everything to IK's wacky scheme
@@ -285,7 +297,7 @@ def main():
 
                     if parsed[line]:
                         decoded[line] = DECODED.build(parsed[line], line=line, \
-                                expected=expected_params[line])
+                                expected=len(expected_params[line]))
                     else:
                         empty = DECODED.parse(b"\x00", line=line, \
                                 expected=1)
