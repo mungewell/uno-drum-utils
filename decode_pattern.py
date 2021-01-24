@@ -41,18 +41,18 @@ UNODRPT = Struct(
 )
 
 DECODED2 = Struct(
-    "width" / Computed(lambda this: int(this._.laststep/7)+1),
-    "bits" / Switch(this.width, {
-        1:Int8ub,
-        2:Int16ub,
-        3:Int24ub,
-        4:Int32ub,      # should extend to 64bits
+    "width" / Computed(lambda this: int(this._.laststep/7)+1), # number of bytes
+    "bits" / Switch(this.width, {       # erroneously includes MSBs
+        1:Int8ul,
+        2:Int16ul,
+        3:Int24ul,
+        4:Int32ul,
     }),
     "zero" / Switch(this.width, {
-        1:Int8ub,
-        2:Int16ub,
-        3:Int24ub,
-        4:Int32ub,
+        1:Int8ul,
+        2:Int16ul,
+        3:Int24ul,
+        4:Int32ul,
     }),
     Check(this.zero == 0),
     "params" / Computed(lambda this: bin(this.bits).count("1")),
@@ -202,32 +202,29 @@ def main():
             for line in range(1, 13):
                 if len(decoded[line]) == 0:
                     continue
-                length = decoded[line][0]
-                out = [" "] * length
+                text = DECODED.parse(decoded[line], \
+                        expected=expected_params[line])
+                out = [" "] * text['laststep']
 
-                offset = 0
-                pcount = 0
-                while offset < len(decoded[line]):
-                    if decoded[line][offset] == 0:
-                        offset += 1
-                        pcount += 1
-                        continue
-
-                    length = int(decoded[line][0]/7)+1
+                if text['laststep']:
+                    step = 0
                     count = 0
-                    loc = []
-                    for loop in range(length):
-                        for bit in range(7):
-                            if (decoded[line][offset+loop+1] >> bit & 1) == 1:
-                                count += 1
-                                loc.append(loop*7 + bit)
+                    bits = text['params']['bits']
+                    for param in range(text['params']['params']):
+                        # find location of next set bit
+                        while bits & 0x0001 == 0:
+                            step += 1
+                            count += 1
+                            bits = bits >> 1
+                            # skip MSBs
+                            if count % 7 == 0:
+                                bits = bits >> 1
 
-                    if pcount == 0:
-                        for loop in range(count):
-                            out[loc[loop]] = graphic[decoded[line][offset + (2*length) + 1 + loop] >> 3]
+                            if bits == 0:
+                                break
 
-                    offset += 2*length + count + 1
-                    pcount += 1
+                        out[step] = graphic[text['params']['param'][param] >> 3]
+                        bits = bits & 0xffffe
 
                 print("%2.2d %10.10s :%s" % (line, element_names[line], "".join(out)))
 
@@ -236,8 +233,8 @@ def main():
                 outfile = open(options.outmidi, "wb")
             else:
                 outfile = open(options.outfile, "wb")
+                data = UNODRPT.build(config)
 
-            data = UNODRPT.build(config)
             if outfile:
                 outfile.write(data)
                 outfile.close
