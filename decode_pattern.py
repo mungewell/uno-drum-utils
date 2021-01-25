@@ -54,21 +54,22 @@ UNODRPT = Struct(
 )
 
 DECODED2 = Struct(
-    "width" / Computed(lambda this: int(this._.laststep/7)+1), # number of bytes
-    "bits" / Switch(this.width, {       # erroneously includes MSBs
+    "width" / Computed(lambda this: int(this._.laststep/7)+1),  # number of bytes
+    "bitfield" / Switch(this.width, {   # erroneously includes MSBs
         1:Int8ul,
         2:Int16ul,
         3:Int24ul,
-        4:Int32ul,                      # need to extend to 10 bytes (64 steps)
+        4:Int32ul,                      # need to extend to 10 bytes (ie. 64 steps)
+        5:Int64ul,                      # safe as followed by zeros...
+        6:Int64ul,
+        7:Int64ul,
+        8:Int64ul,                      # 8 bytes => up-to 56 steps...
     }),
-    "zero" / Switch(this.width, {
-        1:Int8ul,
-        2:Int16ul,
-        3:Int24ul,
-        4:Int32ul,
-    }),
-    Check(this.zero == 0),
-    "params" / Computed(lambda this: bin(this.bits).count("1")),
+    IfThenElse(this.width > 4,
+        Array((this.width * 2) - 8, Const(b"\x00")),
+        Array(this.width, Const(b"\x00")),
+        ),
+    "params" / Computed(lambda this: bin(this.bitfield).count("1")),
     "param" / Array(this.params, Byte),
 )
 
@@ -231,10 +232,10 @@ def main():
                     if parsed[line]['decoded'][param]['laststep']:
                         step = 0
                         count = 0
-                        bits = parsed[line]['decoded'][param]['params']['bits']
+                        bits = parsed[line]['decoded'][param]['params']['bitfield']
                         for value in range(parsed[line]['decoded'][param]['params']['params']):
                             # find location of next set bit
-                            while bits & 0x0001 == 0:
+                            while bits & 0x0000000000000001 == 0:
                                 step += 1
                                 count += 1
                                 bits = bits >> 1
@@ -246,9 +247,9 @@ def main():
                                     break
 
                             print("Param '%s': Step %d sets value %d" % ( \
-                                    expected_params[line][param], step, \
+                                    expected_params[line][param], step + 1, \
                                     parsed[line]['decoded'][param]['params']['param'][value]))
-                            bits = bits & 0xffffe
+                            bits = bits & 0xfffffffffffffffe
 
         if options.text and data:
             graphic = "..,,ooxxOOXX$$##"
@@ -257,14 +258,15 @@ def main():
                 if not parsed[line]:
                     continue
                 out = [" "] * parsed[line]['decoded'][0]['laststep']
+                print(len(out))
 
                 if parsed[line]['decoded'][0]['laststep']:
                     step = 0
                     count = 0
-                    bits = parsed[line]['decoded'][0]['params']['bits']
+                    bits = parsed[line]['decoded'][0]['params']['bitfield']
                     for value in range(parsed[line]['decoded'][0]['params']['params']):
                         # find location of next set bit
-                        while bits & 0x0001 == 0:
+                        while bits & 0x0000000000000001 == 0:
                             step += 1
                             count += 1
                             bits = bits >> 1
@@ -276,7 +278,7 @@ def main():
                                 break
 
                         out[step] = graphic[parsed[line]['decoded'][0]['params']['param'][value] >> 3]
-                        bits = bits & 0xffffe
+                        bits = bits & 0xfffffffffffffffe
 
                 print("%2.2d %10.10s :%s" % (line, element_names[line], "".join(out)))
 
