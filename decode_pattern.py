@@ -21,7 +21,7 @@ expected_params = [ [],
         ["vel", "level", "tune", "decay"],
         ["vel", "level", "tune", "decay"],
         ["vel", "level", "tune", "decay"],
-        ["vel", "level", "tune", "decay", "snap", "FM tune FM amt", "sweep"],
+        ["vel", "level", "tune", "decay", "snap", "FM tune", "FM amt", "sweep"],
         ["vel", "level", "tune", "decay", "snap"],
         ["vel", "level", "tune", "decay", "snap", "Noise LPF"],
         ["vel", "level", "tune", "decay"],
@@ -29,7 +29,7 @@ expected_params = [ [],
         ["vel", "level", "tune", "decay"]]
 
 BLOB = Struct(
-    "length" / Byte,
+    "length" / Rebuild(Byte, len_(this.blob)+1),
     "blob" / Bytes(this.length - 1),
     Const(b"\x00"),
 )
@@ -92,7 +92,7 @@ MIDI = Struct(
 )
 
 def encode_byte(byte):
-    # Mutate each byte according to UNO's scheme
+    # Mutate each byte according to IK's scheme
     if byte & 0x3f == 0:
         byte = 0x2e
     elif byte & 0x3f == 0x3f:
@@ -107,19 +107,23 @@ def encode_byte(byte):
 def encode_block(data):
     out = bytearray()
 
-    # pad to allow encoding
-    if len(data) % 3:
-        data.append(0)
-
     # encode 3bytes to 4bytes (as per pattern file format)
     while data:
-        if len(data) > 1:
+        if True:
             out.append(encode_byte(0x40 +  (data[0] & 0x3f)))
+
+        if len(data) > 1:
             out.append(encode_byte(0x40 + ((data[0] >> 6) & 0x03) + ((data[1] << 2) & 0x3c)))
+        else:
+            out.append(encode_byte(0x40 + ((data[0] >> 6) & 0x03) + ((0x00 << 2) & 0x3c)))
+
         if len(data) > 2:
             out.append(encode_byte(0x40 + ((data[1] >> 4) & 0x0f) + ((data[2] << 4) & 0x30)))
             out.append(encode_byte(0x40 + ((data[2] >> 2) & 0x1f)))
-        del data[:3]
+        elif len(data) > 1:
+            out.append(encode_byte(0x40 + ((data[1] >> 4) & 0x0f) + ((0x00 << 4) & 0x30)))
+
+        data = data[3:]
 
     return out
 
@@ -292,22 +296,17 @@ def main():
                 # re-assemble everything to IK's wacky scheme
                 for line in range(1, 13):
                     start = 1 + config['line'+str(line)]['blob'].index(0x2e)
-                    print(line, hexdump(config['line'+str(line)]['blob']))
                     config['line'+str(line)]['blob'] = config['line'+str(line)]['blob'][:start]
 
                     if parsed[line]:
                         decoded[line] = DECODED.build(parsed[line], line=line, \
                                 expected=len(expected_params[line]))
+                        encoded = encode_block(bytearray(decoded[line]))
                     else:
-                        empty = DECODED.parse(b"\x00", line=line, \
-                                expected=1)
-                        decoded[line] = DECODED.build(empty, line=line, \
-                                expected=1)
-                        print(hexdump(decoded[line]))
+                        # if no 'vel' steps, rest of line is empty
+                        encoded = b""
 
-                    encoded = encode_block(bytearray(decoded[line]))
-                    config['line'+str(line)]['blob'] += encoded + b"\x00"
-                    print(line, hexdump(config['line'+str(line)]['blob']))
+                    config['line'+str(line)]['blob'] += encoded
 
                 data = UNODRPT.build(config)
                 outfile = open(options.outfile, "wb")
