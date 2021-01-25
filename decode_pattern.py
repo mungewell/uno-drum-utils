@@ -258,7 +258,6 @@ def main():
                 if not parsed[line]:
                     continue
                 out = [" "] * parsed[line]['decoded'][0]['laststep']
-                print(len(out))
 
                 if parsed[line]['decoded'][0]['laststep']:
                     step = 0
