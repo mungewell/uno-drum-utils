@@ -94,9 +94,17 @@ DECODED1 = Struct(
     "params" / If(this.laststep > 0, DECODED2),
 )
 
+LEN_SWING = Struct(
+    "length" / Byte,
+    "swing" / Byte,
+)
+
 DECODED = Struct(
     "line" / Computed(this._params.line),
-    "decoded" / Array(this._params.expected, DECODED1),
+    "decoded" / IfThenElse(this.line == 0,
+            LEN_SWING,
+            Array(this._params.expected, DECODED1),
+    ),
 )
 
 MIDI = Struct(
@@ -104,7 +112,10 @@ MIDI = Struct(
     "line" / Byte,
     Check(this.line == this._params.line),
     Const(b"\x39\x0e"),
-    "decoded" / Array(this._params.expected, DECODED1),
+    "decoded" / IfThenElse(this.line == 0,
+            LEN_SWING,
+            Array(this._params.expected, DECODED1),
+    ),
     Const(b"\xf7"),
 )
 
@@ -191,6 +202,11 @@ def main():
     parser.add_option("-m", "--midi", dest="midi",
         help="import data from midi dump")
 
+    parser.add_option("-L", "--length", dest="length",
+        help="set pattern LENGTH")
+    parser.add_option("-S", "--swing", dest="swing",
+        help="set pattern SWING")
+
     parser.add_option("-s", "--summary", dest="summary",
         help="summarize LINE in human readable form")
     parser.add_option("-t", "--text",
@@ -219,12 +235,20 @@ def main():
 
         decoded = [b""]*13
         parsed  = [b""]*13
-        for line in range(1, 13):
+        for line in range(13):
             start = 1 + config['line'+str(line)]['blob'].index(0x2e)
             decoded[line] = decode_block(config['line'+str(line)]['blob'][start:])
             if len(decoded[line]):
                 parsed[line] = DECODED.parse(decoded[line], line = line, \
                         expected = len(expected_params[line]))
+
+        if options.length and parsed[0]:
+            print("Setting Length to '%s'" % options.length)
+            parsed[0]['decoded']['length'] = int(options.length)
+
+        if options.swing and parsed[0]:
+            print("Setting Swing to '%s'" % options.swing)
+            parsed[0]['decoded']['swing'] = int(options.swing)
 
         if options.midi and options.line:
             print("Merging: '%s' (to Line %s)" % (options.midi, options.line))
@@ -243,6 +267,11 @@ def main():
         if options.summary and data:
             line = int(options.summary)
             print("Summary of Line %d:" % line)
+
+            if parsed[0]:
+                print("Length: %d" % parsed[0]['decoded']['length'])
+                print("Swing : %d" % parsed[0]['decoded']['swing'])
+
             if parsed[line]:
                 for param in range(len(expected_params[line])):
                     if parsed[line]['decoded'][param]['laststep']:
@@ -269,6 +298,10 @@ def main():
 
         if options.text and data:
             graphic = "..,,ooxxOOXX$$##"
+
+            if parsed[0]:
+                print("Length: %d" % parsed[0]['decoded']['length'])
+                print("Swing : %d" % parsed[0]['decoded']['swing'])
 
             for line in range(1, 13):
                 if not parsed[line]:
@@ -311,7 +344,7 @@ def main():
                 outfile = open(options.outmidi, "wb")
             else:
                 # re-assemble everything to IK's wacky scheme
-                for line in range(1, 13):
+                for line in range(13):
                     start = 1 + config['line'+str(line)]['blob'].index(0x2e)
                     config['line'+str(line)]['blob'] = config['line'+str(line)]['blob'][:start]
 
