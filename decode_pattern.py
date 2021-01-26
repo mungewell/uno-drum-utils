@@ -5,7 +5,6 @@
 #
 
 from construct import *
-from hexdump import *
 
 #--------------------------------------------------
 # Define UNODRPT file format using Construct (v2.9)
@@ -53,23 +52,40 @@ UNODRPT = Struct(
     Const(b"\x00"),
 )
 
+BITFIELD = Struct(
+    "bitfield_1" / Switch(this._.width, {
+        1:Rebuild(Int8ul,   this.bitfield & 0x000000000000000000FF),
+        2:Rebuild(Int16ul,  this.bitfield & 0x0000000000000000FFFF),
+        3:Rebuild(Int24ul,  this.bitfield & 0x00000000000000FFFFFF),
+        4:Rebuild(Int32ul,  this.bitfield & 0x000000000000FFFFFFFF),
+        5:Rebuild(Int32ul,  this.bitfield & 0x000000000000FFFFFFFF),
+        6:Rebuild(Int32ul,  this.bitfield & 0x000000000000FFFFFFFF),
+        7:Rebuild(Int32ul,  this.bitfield & 0x000000000000FFFFFFFF),
+        8:Rebuild(Int32ul,  this.bitfield & 0x000000000000FFFFFFFF),
+        9:Rebuild(Int32ul,  this.bitfield & 0x000000000000FFFFFFFF),
+        10:Rebuild(Int32ul, this.bitfield & 0x000000000000FFFFFFFF),
+    }, default=Computed(0)),
+    "bitfield_2" / Switch(this._.width, {
+        5:Rebuild(Int8ul,  (this.bitfield & 0x0000000000FF00000000) >> 32),
+        6:Rebuild(Int16ul, (this.bitfield & 0x00000000FFFF00000000) >> 32),
+        7:Rebuild(Int24ul, (this.bitfield & 0x000000FFFFFF00000000) >> 32),
+        8:Rebuild(Int32ul, (this.bitfield & 0x0000FFFFFFFF00000000) >> 32),
+        9:Rebuild(Int32ul, (this.bitfield & 0x0000FFFFFFFF00000000) >> 32),
+        10:Rebuild(Int32ul,(this.bitfield & 0x0000FFFFFFFF00000000) >> 32),
+    }, default=Computed(0)),
+    "bitfield_3" / Switch(this._.width, {
+        9:Rebuild(Int8ul,  (this.bitfield & 0x00FF0000000000000000) >> 64),
+        10:Rebuild(Int16ul,(this.bitfield & 0xFFFF0000000000000000) >> 64),
+    }, default=Computed(0)),
+
+    "bitfield" / Computed((this.bitfield_3 << 64) + (this.bitfield_2 << 32) + this.bitfield_1),
+)
+
 DECODED2 = Struct(
     "width" / Computed(lambda this: int(this._.laststep/7)+1),  # number of bytes
-    "bitfield" / Switch(this.width, {   # erroneously includes MSBs
-        1:Int8ul,
-        2:Int16ul,
-        3:Int24ul,
-        4:Int32ul,                      # need to extend to 10 bytes (ie. 64 steps)
-        5:Int64ul,                      # safe as followed by zeros...
-        6:Int64ul,
-        7:Int64ul,
-        8:Int64ul,                      # 8 bytes => up-to 56 steps...
-    }),
-    IfThenElse(this.width > 4,
-        Array((this.width * 2) - 8, Const(b"\x00")),
-        Array(this.width, Const(b"\x00")),
-        ),
-    "params" / Computed(lambda this: bin(this.bitfield).count("1")),
+    "bitfield" / BITFIELD,
+    "bitfield2" / BITFIELD,
+    "params" / Computed(lambda this: bin(this.bitfield.bitfield).count("1")),
     "param" / Array(this.params, Byte),
 )
 
@@ -232,10 +248,10 @@ def main():
                     if parsed[line]['decoded'][param]['laststep']:
                         step = 0
                         count = 0
-                        bits = parsed[line]['decoded'][param]['params']['bitfield']
+                        bits = parsed[line]['decoded'][param]['params']['bitfield']['bitfield']
                         for value in range(parsed[line]['decoded'][param]['params']['params']):
                             # find location of next set bit
-                            while bits & 0x0000000000000001 == 0:
+                            while bits & 0x00000000000000000001 == 0:
                                 step += 1
                                 count += 1
                                 bits = bits >> 1
@@ -249,7 +265,7 @@ def main():
                             print("Param '%s': Step %d sets value %d" % ( \
                                     expected_params[line][param], step + 1, \
                                     parsed[line]['decoded'][param]['params']['param'][value]))
-                            bits = bits & 0xfffffffffffffffe
+                            bits = bits & 0xFFFFFFFFFFFFFFFFFFFE
 
         if options.text and data:
             graphic = "..,,ooxxOOXX$$##"
@@ -262,10 +278,10 @@ def main():
                 if parsed[line]['decoded'][0]['laststep']:
                     step = 0
                     count = 0
-                    bits = parsed[line]['decoded'][0]['params']['bitfield']
+                    bits = parsed[line]['decoded'][0]['params']['bitfield']['bitfield']
                     for value in range(parsed[line]['decoded'][0]['params']['params']):
                         # find location of next set bit
-                        while bits & 0x0000000000000001 == 0:
+                        while bits & 0x00000000000000000001 == 0:
                             step += 1
                             count += 1
                             bits = bits >> 1
@@ -277,7 +293,7 @@ def main():
                                 break
 
                         out[step] = graphic[parsed[line]['decoded'][0]['params']['param'][value] >> 3]
-                        bits = bits & 0xfffffffffffffffe
+                        bits = bits & 0xFFFFFFFFFFFFFFFFFFFE
 
                 print("%2.2d %10.10s :%s" % (line, element_names[line], "".join(out)))
 
