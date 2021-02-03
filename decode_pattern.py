@@ -56,6 +56,11 @@ DECODED2 = Struct(
     "width" / Computed(lambda this: int((this._.laststep-1)/7)+1),  # number of bytes
     "bitfield" / BytesInteger(this.width, swapped=True),
     "bitfield2" / BytesInteger(this.width, swapped=True),
+    "params2" / IfThenElse(this._._index == 0,      # valid only with Velocity data
+            Computed(lambda this: bin(this.bitfield2).count("1")),
+            Computed(0),
+            ),
+    "param2" / Array(this.params2, Byte),
     "params" / Computed(lambda this: bin(this.bitfield).count("1")),
     "param" / Array(this.params, Byte),
 )
@@ -207,6 +212,7 @@ def main():
         decoded = [b""]*13
         parsed  = [b""]*13
         for line in range(13):
+            #print("Parsing line %d (%s)" % (line, element_names[line]))
             start = 1 + config['line'+str(line)]['blob'].index(0x2e)
             decoded[line] = decode_block(config['line'+str(line)]['blob'][start:])
             if len(decoded[line]):
@@ -237,7 +243,7 @@ def main():
 
         if options.summary and data:
             line = int(options.summary)
-            print("Summary of Line %d:" % line)
+            print("Summary of Line %d: %s" % (line, element_names[line]))
 
             if parsed[0]:
                 print("Length: %d" % parsed[0]['decoded']['length'])
