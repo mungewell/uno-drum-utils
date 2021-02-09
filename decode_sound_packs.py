@@ -39,8 +39,10 @@ Block = Struct(
     "total" / Computed(lambda this: sum(this.elements)),
     "samples" / Array(this.total, Sample),
 
-    "data" / Padded(lambda this: this.length2 - 456,    # seems that there may be padding
-        Array(this.total, Data),                        # maybe needs to be multiple of 4...
+    "resize" / Computed((4 + 8 + 12 + (8 * this.total)) & 0xFFF8),  # gives 456
+
+    "data" / Padded(lambda this: this.length2 - this.resize,# seems that there may be padding
+        Array(this.total, Data),                            # maybe needs to be multiple of 4...
     ),
 )
 
@@ -151,6 +153,9 @@ def main():
     parser.add_option("-u", "--unpack",
         help="unpack Samples to UNPACK directory",
         dest="unpack")
+    parser.add_option("-p", "--pack",
+        help="pack Samples to PACK directory",
+        dest="pack")
     parser.add_option("-r", "--replace",
         help="pack REPLACE directory of samples to DFU " + \
             "(overwrites contents, either padded or clipped to original size)",
@@ -234,8 +239,11 @@ def main():
                 else:
                     b_count += 1
 
-        if options.replace:
-            path = os.path.join(os.getcwd(), options.replace)
+        if options.pack or options.replace:
+            if options.replace:
+                path = os.path.join(os.getcwd(), options.replace)
+            else:
+                path = os.path.join(os.getcwd(), options.pack)
             if not os.path.exists(path):
                 sys.exit("Directory %s does not exist" % path)
 
@@ -244,16 +252,22 @@ def main():
             b_count = 1
             for sample in config['block']['samples']:
                 unpacked = []
+                infile = None
                 if options.raw:
                     name = os.path.join(path, "sample-{0:0=2d}-{1:0=1d}.raw".format(a_count, b_count))
                     if os.path.isfile(name):
                         infile = open(name, "rb")
                         if infile:
-                            for temp in range(sample['length']):
+                            if options.pack:
+                                file_stats = os.stat(name)
+                                length = file_stats.st_size/2
+                            else:
+                                length = sample['length']
+
+                            for temp in range(length):
                                 value = infile.read(2)
                                 unpacked.append(int.from_bytes(value, byteorder='little'))
                             infile.close()
-
                 else:
                     name = os.path.join(path, "sample-{0:0=2d}-{1:0=1d}.wav".format(a_count, b_count))
                     if os.path.isfile(name):
@@ -267,7 +281,12 @@ def main():
                             if infile.getframerate() != 32000:
                                 sys.exit("Samples should be 3200KHz: %s" % name)
 
-                            for temp in range(sample['length']):
+                            if options.pack:
+                                length = infile.getnframes() 
+                            else:
+                                length = sample['length']
+
+                            for temp in range(length):
                                 value = infile.readframes(1)
                                 unpacked.append(int.from_bytes(value, byteorder='big'))
                             infile.close()
@@ -276,7 +295,27 @@ def main():
                     config['block']['data'][count-1].data = bytes(pack_samples(unpacked))
 
                 count += 1
-                if b_count == config['block']['elements'][a_count-1]:
+                if options.pack:
+                    if not infile:
+                        # file not found, advanced to next element
+                        count -= 1
+
+                        config['block']['elements'][a_count-1] = b_count - 1
+                        config['block']['total'] = count - 1
+                        a_count += 1
+                        b_count = 1
+
+                        if a_count == 13:
+                            # all elements done, truncate data blocks
+                            config['block']['samples'] = config['block']['samples'][:count-1]
+                            config['block']['data'] = config['block']['data'][:count-1]
+                            break
+                    else:
+                        config['block']['samples'][count-2].length = length
+                        config['block']['samples'][count-2].bytes = \
+                                len(config['block']['data'][count-2].data)
+                        b_count += 1
+                elif b_count == config['block']['elements'][a_count-1]:
                     a_count += 1
                     b_count = 1
                 else:
