@@ -21,9 +21,9 @@ class SampleBytes(Adapter):
         return int(obj * 2/3)
 
 Sample = Struct(
-    "length" / Peek(Int24ul),           # in 12bit samples
-    "bytes" / SampleBytes(Int24ul),     # in bytes
-    Const(b"\x7d\x53\x4d\x50\x00"),
+    "length" / Peek(Int16ul),           # in 12bit samples
+    "bytes" / SampleBytes(Int16ul),     # in bytes
+    Const(b"\x00\x7d\x53\x4d\x50\x00"),
 )
 
 Data = Struct(
@@ -264,6 +264,9 @@ def main():
                             else:
                                 length = sample['length']
 
+                            if length > 0xffff:
+                                length = 0xffff
+
                             for temp in range(length):
                                 value = infile.read(2)
                                 unpacked.append(int.from_bytes(value, byteorder='little'))
@@ -285,6 +288,9 @@ def main():
                                 length = infile.getnframes() 
                             else:
                                 length = sample['length']
+
+                            if length > 0xffff:
+                                length = 0xffff
 
                             for temp in range(length):
                                 value = infile.readframes(1)
