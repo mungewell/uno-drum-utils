@@ -250,6 +250,22 @@ def main():
             count = 1
             a_count = 1
             b_count = 1
+
+            if options.pack:
+                # create more than enough empty slots
+                Empty = Array(200, Struct(
+                    "length" / Computed(0),
+                    "bytes" / Computed(0),
+                ))
+                empty = Empty.parse(b"")
+                config['block']['samples'] = empty
+
+                Empty = Array(200, Struct(
+                    "data" / Bytes(0),
+                ))
+                empty = Empty.parse(b"")
+                config['block']['data'] = empty
+
             for sample in config['block']['samples']:
                 unpacked = []
                 infile = None
@@ -312,7 +328,7 @@ def main():
                         b_count = 1
 
                         if a_count == 13:
-                            # all elements done, truncate data blocks
+                            # all elements done, truncate data arrays
                             config['block']['samples'] = config['block']['samples'][:count-1]
                             config['block']['data'] = config['block']['data'][:count-1]
                             break
