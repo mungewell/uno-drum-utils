@@ -19,6 +19,25 @@ easy for users to add their own samples. I'll jusy say "coming soon"....
 For programming UNO Synth, see the sister project:
 https://github.com/mungewell/uno-synth-utils
 
+# Sound-Pack Capabilities
+
+Each sample is 12bit, mono, 32KHz, and can be up-to 65535 samples (~2sec) long.
+
+Offically each pad has either 5 PCM samples, or Analog + 4 PCM samples. Leading
+to a total of 54 samples for each pack. The factory pack contains a total of
+12.58sec, although the exact limit is not known at this time.
+
+Oddly analog samples are labelled 'An' and 2 thru 5 on the device, but 'An' 
+and 1 thru 4 on the Editor application.
+
+The Sound-Packs can define more (or less) samples for each pad, the display
+on the device can't count above 9 - it just shows blanks - but the samples can 
+continue to be switched.
+
+If less than regular ammount are set the device can become 'confused' if a drum pack
+selects an unused sample, and then turning the data dial will be un-affective. The
+desired sample can be selected via Midi.
+
 # Handcrafted SysEx control of the device
 
 Reverse engineering has only just started but it seems that it's at least somewhat
