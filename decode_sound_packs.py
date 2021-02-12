@@ -199,6 +199,10 @@ def main():
                 if b_count == config['block']['elements'][a_count-1]:
                     a_count += 1
                     b_count = 1
+
+                    while (a_count <= len(config['block']['elements']) and \
+                            config['block']['elements'][a_count-1] == 0):
+                        a_count += 1
                 else:
                     b_count += 1
             print("Total length: %d bytes" % btotal)
@@ -236,6 +240,10 @@ def main():
                 if b_count == config['block']['elements'][a_count-1]:
                     a_count += 1
                     b_count = 1
+
+                    while (a_count <= len(config['block']['elements']) and \
+                            config['block']['elements'][a_count-1] == 0):
+                        a_count += 1
                 else:
                     b_count += 1
 
@@ -340,6 +348,10 @@ def main():
                 elif b_count == config['block']['elements'][a_count-1]:
                     a_count += 1
                     b_count = 1
+
+                    while (a_count <= len(config['block']['elements']) and \
+                            config['block']['elements'][a_count-1] == 0):
+                        a_count += 1
                 else:
                     b_count += 1
 
