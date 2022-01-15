@@ -10,6 +10,9 @@ REM using 'sox' to convert to 32KHz, 16bit, mono
 REM http://sox.sourceforge.net/
 REM longer samples can be trimmed with 'fade 0 0.2 0.01', ie trim to 0.2s with 10ms fade out.
 
+REM Or render a short file of 'silence'
+REM %sox% -n %ss% unpacked\sample-01-4.wav trim 0.0 0.001
+
 set sox="C:\Program Files (x86)\sox-14.4.2\sox.exe"
 set ss=-r 32000 -c 1 -b 16 -e signed
 
@@ -29,11 +32,11 @@ REM Tom2
 %sox% DrumSamples.org-DS1000\Congas\conga9.wav %ss% unpacked\sample-02-5.wav fade 0 0.18 0.01
 
 REM Rim
-%sox% DrumSamples.org-DS1000\Rattles\rattle3.wav %ss% unpacked\sample-02-1.wav
-%sox% DrumSamples.org-DS1000\Rattles\rattle4.wav %ss% unpacked\sample-02-2.wav
-%sox% DrumSamples.org-DS1000\Rattles\rattle5.wav %ss% unpacked\sample-02-3.wav
-%sox% DrumSamples.org-DS1000\Tambourines\tambourine2.wav %ss% unpacked\sample-02-4.wav
-%sox% DrumSamples.org-DS1000\Tambourines\tambourine3.wav %ss% unpacked\sample-02-5.wav
+%sox% DrumSamples.org-DS1000\Rattles\rattle3.wav %ss% unpacked\sample-03-1.wav
+%sox% DrumSamples.org-DS1000\Rattles\rattle4.wav %ss% unpacked\sample-03-2.wav
+%sox% DrumSamples.org-DS1000\Rattles\rattle5.wav %ss% unpacked\sample-03-3.wav
+%sox% DrumSamples.org-DS1000\Tambourines\tambourine2.wav %ss% unpacked\sample-03-4.wav
+%sox% DrumSamples.org-DS1000\Tambourines\tambourine3.wav %ss% unpacked\sample-03-5.wav
 
 REM Cowbell
 %sox% DrumSamples.org-DS1000\Cowbells\cowbell1.wav  %ss% unpacked\sample-04-1.wav fade 0 0.09 0.01
