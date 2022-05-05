@@ -21,8 +21,8 @@ class SampleBytes(Adapter):
         return int(obj * 2/3)
 
 Sample = Struct(
-    "length" / Peek(Int16ul),           # in 12bit samples
-    "bytes" / SampleBytes(Int16ul),     # in bytes
+    "length" / Peek(Int16ul),                       # in 12bit samples
+    "bytes" / Default(SampleBytes(Int16ul), 2),     # in bytes
     Const(b"\x00\x7d\x53\x4d\x50\x00"),
 )
 
@@ -30,55 +30,66 @@ Data = Struct(
     "data" / Bytes(lambda this: this._.samples[this._index].bytes),
 )
 
+NoData = Struct(
+    "data" / Default(Bytes(2), b"\x00\x00"),
+)
+
 Block = Struct(
     Const(b"\x00\x00\x00\x00"),
-    "length2" / Int32ul,
+    "length2" / Default(Int32ul, 604324),
     #Check(this._.length1 == this.length2),
 
-    "elements" / Array(12, Byte),
+    "elements" / Default(Array(12, Byte), [5,5,5,5,5,5,4,4,4,4,4,4]),
     "total" / Computed(lambda this: sum(this.elements)),
-    "samples" / Array(this.total, Sample),
-
     "resize" / Computed((4 + 8 + 12 + (8 * this.total)) & 0xFFF8),  # gives 456
 
-    "data" / Padded(lambda this: this.length2 - this.resize,# seems that there may be padding
-        Array(this.total, Data),                            # maybe needs to be multiple of 4...
+    "samples" / Default(
+        Array(this.total, Sample),
+        [Sample.parse(Sample.build(None))] * this.total,
+    ),
+
+    "data" / Padded(lambda this: this.length2 - this.resize,
+        Default(
+            Array(this.total, Data),
+            [NoData.parse(NoData.build(None))] * this.total,
+        ),
     ),
 )
 
-Header = Padded(0x115, Struct(
+Header = Padded(277, Struct(
     Const(b"DfuSe"),
-    "param1" / Int32ul,
+    "param1" / Default(Int32ul, 0x7ABE901),     # unknown, common value
     Const(b"\x00\x01"),
     Const(b"Target"),
     Const(b"\x01\x01\x00\x00\x00"),
     Const(b"PCM Library"),
     Const(b"\x20\x00"),
-    #"name" / PaddedString(100, "ascii"),
+
+    #"name" / PaddedString(100, "ascii"),       # some packs have non-ascii data
 ))
 
 Footer = Struct(
     "BCD" / Const(b"\x03\x00"),
     "PID" / Const(b"\x48\x00"),
-    "VID" / Bytes(2),               # Const(b"\x63\x19"),
+    "VID" / Default(Short, 0x6319),
     "BCD_DFU" / Const(b"\x1A\x01"),
     Const(b"UFD"),
     "LENGTH" / Const(b"\x10"),
-
-    #"crc32" / Int32ul,              # Python CRC32 ^ 0xffffffff
 )
 
 DFU = Struct(
     "header" / Header,
-    "length" / Int32ul,
+    "length" / Default(Int32ul, 604332),
     Const(b"\x01\x00\x00\x00\x00\x00\x04\x08"),
 
-    "length1" / Int32ul,
+    "length1" / Default(Int32ul, 604324),
 
     "block" / Block,
 
-    "checksum" / Int32ul,           # CRC-32-BZIP2
+    "checksum" / Default(Int32ul, 0),   # CRC-32-BZIP2 of "block"
     "footer" / Footer,
+
+    "crc32" / Default(Int32ul, 0),      # Python CRC32 ^ 0xffffffff
 )
 
 def unpack_samples(data):
@@ -171,15 +182,16 @@ def main():
     (options, args) = parser.parse_args()
     
     if len(args) != 1:
-        parser.error("FILE not specified")
-
-    print("Opening:", args[0])
-    infile = open(args[0], "rb")
-    if not infile:
-        sys.exit("Unable to open FILE for reading")
+        print("Warning: no file specified, auto-generating")
+        data = DFU.build(None)
     else:
-        data = infile.read()
-    infile.close()
+        print("Opening:", args[0])
+        infile = open(args[0], "rb")
+        if not infile:
+            sys.exit("Unable to open FILE for reading")
+        else:
+            data = infile.read()
+        infile.close()
 
     if data:
         config = DFU.parse(data)
@@ -368,11 +380,11 @@ def main():
             # re-calc outer checksum
             data = DFU.build(config)
             crc32 = crcmod.Crc(0x104c11db7, rev=True, initCrc=0, xorOut=0xFFFFFFFF)
-            crc32.update(data)
+            crc32.update(data[:-4])
 
             outfile = open(options.outfile, "wb")
             if outfile:
-                outfile.write(data)
+                outfile.write(data[:-4])
                 outfile.write((crc32.crcValue ^ 0xFFFFFFFF).to_bytes(4, byteorder='little'))
                 outfile.close
 
