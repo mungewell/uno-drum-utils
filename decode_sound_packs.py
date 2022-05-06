@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!usr/bin/python
 #
 # Script decode 'sound packs' for UNO Drum
 # (c) Simon Wood, 7 Jan 2021
@@ -36,7 +36,7 @@ NoData = Struct(
 
 Block = Struct(
     Const(b"\x00\x00\x00\x00"),
-    "length2" / Default(Int32ul, 604324),
+    "length2" / Default(Int32ul, 782948),
     #Check(this._.length1 == this.length2),
 
     "elements" / Default(Array(12, Byte), [5,5,5,5,5,5,4,4,4,4,4,4]),
@@ -58,7 +58,7 @@ Block = Struct(
 
 Header = Padded(277, Struct(
     Const(b"DfuSe"),
-    "param1" / Default(Int32ul, 0x7ABE901),     # unknown, common value
+    "param1" / Default(Int32ul, 200509697),     # unknown, changes with size
     Const(b"\x00\x01"),
     Const(b"Target"),
     Const(b"\x01\x01\x00\x00\x00"),
@@ -79,10 +79,11 @@ Footer = Struct(
 
 DFU = Struct(
     "header" / Header,
-    "length" / Default(Int32ul, 604332),
+    "length" / Default(Int32ul, 782956),
+
     Const(b"\x01\x00\x00\x00\x00\x00\x04\x08"),
 
-    "length1" / Default(Int32ul, 604324),
+    "length1" / Default(Int32ul, 782948),
 
     "block" / Block,
 
@@ -146,7 +147,6 @@ def main():
     from optparse import OptionParser
     import crcmod
 
-    from hexdump import hexdump
     import binascii
     import zlib
 
@@ -182,7 +182,7 @@ def main():
     (options, args) = parser.parse_args()
     
     if len(args) != 1:
-        print("Warning: no file specified, auto-generating")
+        print("Warning: no input file specified, auto-generating")
         data = DFU.build(None)
     else:
         print("Opening:", args[0])

@@ -21,21 +21,74 @@ https://github.com/mungewell/uno-synth-utils
 
 # Sound-Pack Capabilities
 
-Each sample is 12bit, mono, 32KHz, and can be up-to 65535 samples (~2sec) long.
+The UNO Drum is advertised with a fixed set of sounds, but shortly after release
+IK released their "Drum Anthology" - 8 sound packs with samples from historic
+drum machines. Registered users could download these and flash them to the UNO Drum.
+
+Each sound/sample is 12bit, mono, 32KHz, and can be up-to 65535 samples (~2sec) long.
+
+# Custom Sound-Packs
+
+The format of these sound packs has been reversed engineered, and we now have the
+ability to extract, or replace the sounds from these packs. We can even create a
+sound pack completely from scratch.
+
+```
+$ python3 decode_sound_packs.py -o empty.dfu
+Warning: no input file specified, auto-generating
+```
+
+As the name hints this is a completely empty sound pack, all samples are short
+sections of silence. But like others this pack could be extracted (to a directory),
+sample files adjusted and then repacked.
+
+```
+$ python3 decode_sound_packs.py -u pack_samples
+Warning: no input file specified, auto-generating
+
+$ python3 decode_sound_packs.py -o my_new_pack.dfu -p pack_samples
+Warning: no input file specified, auto-generating
+```
+
+The sound packs can by uploaded to the UNO Drum using the official tools. We are
+investigating whether these 'dfu' files can be uploaded with other 'free' apps.
 
 Offically each pad has either 5 PCM samples, or Analog + 4 PCM samples. Leading
-to a total of 54 samples for each pack. The factory pack contains a total of
-12.58sec, although the exact limit is not known at this time.
+to a total of 54 samples for each pack. The largest factory pack contains a
+total of 12.58sec, although the exact limit is not known at this time.
+
+A summary of the samples in a pack can be printed
+
+```
+$ python3 decode_sound_packs.py -s empty.dfu
+Opening: empty.dfu
+Number of samples: 54
+Sample 1-1: 1 (2 bytes, 0.000031 sec)
+Sample 1-2: 1 (2 bytes, 0.000031 sec)
+Sample 1-3: 1 (2 bytes, 0.000031 sec)
+Sample 1-4: 1 (2 bytes, 0.000031 sec)
+Sample 1-5: 1 (2 bytes, 0.000031 sec)
+Sample 2-1: 1 (2 bytes, 0.000031 sec)
+Sample 2-2: 1 (2 bytes, 0.000031 sec)
+...
+Sample 11-4: 1 (2 bytes, 0.000031 sec)
+Sample 12-1: 1 (2 bytes, 0.000031 sec)
+Sample 12-2: 1 (2 bytes, 0.000031 sec)
+Sample 12-3: 1 (2 bytes, 0.000031 sec)
+Sample 12-4: 1 (2 bytes, 0.000031 sec)
+Total length: 108 bytes
+Total length: 0.001687 sec
+```
 
 Oddly analog samples are labelled 'An' and 2 thru 5 on the device, but 'An' 
 and 1 thru 4 on the Editor application.
 
-The Sound-Packs can define more (or less) samples for each pad, the display
+The Sound-Packs can define more (or fewer) samples for each pad, the display
 on the device can't count above 9 - it just shows blanks - but the samples can 
 continue to be switched.
 
 If less than regular ammount are set the device can become 'confused' if a drum pack
-selects an unused sample, and then turning the data dial will be un-affective. The
+selects an unused sample, and then turning the data dial will be in-affective. The
 desired sample can be selected via Midi.
 
 # Handcrafted SysEx control of the device
