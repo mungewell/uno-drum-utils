@@ -46,6 +46,7 @@ $ sudo apt-get install dfu-util
 The use the '-l' option to scan your machine for UNO Drum. i
 
 Note: All `dfu-util` commands need to be run as root.
+
 ```
 $ sudo dfu-util -l
 dfu-util 0.9
@@ -63,7 +64,7 @@ Found DFU: [1963:0049] ver=0100, devnum=9, cfg=1, intf=0, path="3-1.1", alt=0, n
 Look for the line with "PCM Library" and note the 'alt' value ('1'). The use this 
 value in the next command.
 
-'''
+```
 $ sudo dfu-util -d 1963:0049 -a 1 -D empty.dfu
 dfu-util 0.9
 
