@@ -70,8 +70,8 @@ Header = Padded(277, Struct(
 
 Footer = Struct(
     "BCD" / Const(b"\x03\x00"),
-    "PID" / Const(b"\x48\x00"),
-    "VID" / Default(Short, 0x6319),
+    "PID" / Default(Int16ul, 0x0048),
+    "VID" / Default(Int16ul, 0x1963),
     "BCD_DFU" / Const(b"\x1A\x01"),
     Const(b"UFD"),
     "LENGTH" / Const(b"\x10"),
@@ -160,6 +160,9 @@ def main():
         action="store_true", dest="summary")
     parser.add_option("-o", "--output", dest="outfile",
         help="write data to OUTFILE")
+    parser.add_option("-f", "--fix",
+        help="fix USB VID/PID to match device in DFU mode",
+        action="store_true", dest="fix")
 
     parser.add_option("-u", "--unpack",
         help="unpack Samples to UNPACK directory",
@@ -366,6 +369,10 @@ def main():
                         a_count += 1
                 else:
                     b_count += 1
+
+        if options.fix:
+            config['footer']['PID'] = 0x0049
+            config['footer']['VID'] = 0x1963
 
         if options.dump:
             print(config)
