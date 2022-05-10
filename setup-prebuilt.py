@@ -15,7 +15,7 @@ options = {
 setup(
     name = "decode_sound_packs.py",
     options = options,
-    version = "0.1.0.0",
+    version = "0.2.0.0",
     description = 'Script for unpacking/packing DFU SoundPacks for UNO Drum',
     executables = executables
 )
