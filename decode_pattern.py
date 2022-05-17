@@ -57,16 +57,20 @@ UNODRPT = Struct(
 )
 
 DECODED2 = Struct(
-    "width" / Computed(lambda this: int((this._.laststep-1)/7)+1),  # number of bytes
+    "width" / Computed(lambda this: int((this._.laststep-1)/7)+1),  # number of bytes in bitfield
     "bitfield" / BytesInteger(this.width, swapped=True),
     "bitfield2" / BytesInteger(this.width, swapped=True),
-    "params2" / IfThenElse(this._._index == 0,      # valid only with Velocity data
+
+    # extra table for Roll/Ratchets - valid only with velocity data
+    "count2" / IfThenElse(this._._index == 0,
             Computed(lambda this: bin(this.bitfield2).count("1")),
             Computed(0),
             ),
-    "param2" / Array(this.params2, Byte),
-    "params" / Computed(lambda this: bin(this.bitfield).count("1")),
-    "param" / Array(this.params, Byte),
+    "param2" / Array(this.count2, Byte),
+
+    # parameter table - "vel", "level", "tune", "decay", etc...
+    "count" / Computed(lambda this: bin(this.bitfield).count("1")),
+    "param" / Array(this.count, Byte),
 )
 
 DECODED1 = Struct(
@@ -293,7 +297,7 @@ def main():
                     step = 0
                     count = 0
                     bits = parsed[line]['decoded'][0]['params']['bitfield']
-                    for value in range(parsed[line]['decoded'][0]['params']['params']):
+                    for value in range(parsed[line]['decoded'][0]['params']['count']):
                         # find location of next set bit
                         while bits & 0x00000000000000000001 == 0:
                             step += 1
